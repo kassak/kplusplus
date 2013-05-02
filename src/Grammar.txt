@@ -1,0 +1,56 @@
+program ::= <global_statement_list>
+global_statement_list ::= <global_statement> [<global_statement_list>]_opt
+global_statement ::= <variable_definition>
+                     <class_definition>
+                     <function_definition>
+variable_definition ::= <type> <initialization_list>;
+variable_initialization_list ::= <variable_initialization> [, <variable_initialization_list>]_opt
+variable_initialization ::= <identifier> [= <expression>]_opt
+                            <identifier> (<argument_list>)
+type ::= ID
+identifier ::= ID
+function_definition ::= <type> <identifier> ([<argument_declaration_list>]_opt) <statements_block>
+argument_declaration_list ::= <argument_declaration> [, <argument_declaration_list>]_opt
+argument_declaration ::= <type> [identifier]_opt
+statements_block ::= {[<statements_list>]_opt}
+statements_list ::= <statement> [<statements_list>]_opt
+statement ::= [<expression>]_opt ;
+              <while_stmt>
+              <if_stmt>
+              <for_stmt>
+              <break_stmt>
+              <continue_stmt>
+              <return_stmt>
+              <variable_definition>
+#              <class_definition>
+              <statements_block>
+while_stmt ::= WHILE (<expression>) statement
+expression_or_variable_definition ::= <expression>;
+                                      <variable_definition>
+for_stmt ::= FOR (<expression_or_variable_definition> <expression>; <expression>) statement
+if_stmt ::= IF (<expression>) <statement> else <statement>
+break_stmt ::= BREAK;
+continue_stmt ::= CONTINUE;
+return_stmt ::= RETURN [<expression>]_opt;
+class_or_struct ::= CLASS
+                    STRUCT
+class_definition ::= <class_or_struct> <identifier> {[<class_internals_list>]_opt};
+class_internals_list ::= <class_internal> [<class_internals_list>]_opt
+class_internal ::= <variable_definition>
+#                   <class_definition>
+                   <function_definition>
+                   <constructor_definition>
+                   <destructor_definition>
+constructor_definition ::= <identifier>([<argument_declaration_list>]_opt) <statements_block>
+destructor_definition ::= ~<identifier>([<argument_declaration_list>]_opt) <statements_block>
+
+argument_list ::= <expression> [, <argument_list>]_opt
+access_identifier ::= <identifier> [.<access_identifier>]_opt
+function_call ::= <access_identifier> (<argument_list>)
+
+#LL-EXPRESSIONS!!
+expression_atom ::= <access_identifier>
+                    <function_call>
+                    NUMBER
+                    (<expression>)
+expression ::= <expression_atom> [OP <expression>]_opt
