@@ -112,11 +112,5 @@ ws [ \t\r\n]
 		std::cout << "ws " << yytext << std::endl;
 }
 
-/*
-.* {
-
- std::cout << "sk " << yytext << std::endl;
-}
-*/
 
 %%

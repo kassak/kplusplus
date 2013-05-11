@@ -87,7 +87,8 @@ namespace ast
                   lex.next();
                   check_expected<global_statement_>(lex, TOK_ID);
                   lex.next();
-                  check_expected<global_statement_>(lex, TOK_BRACE_OPEN);
+                  check_expected<global_statement_>(lex, {TOK_BRACE_OPEN,
+                           TOK_ASSIGNMENT, TOK_COLON, TOK_SEMICOLON});
                   lex.next();
                   if(lex.token() == TOK_BRACE_CLOSE)
                      is_function = true;

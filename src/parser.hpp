@@ -27,15 +27,26 @@ struct unexpected_token_base : std::runtime_error
 template<class R>
 struct unexpected_token : unexpected_token_base
 {
-   unexpected_token(klexer_t const & lex)
-      : unexpected_token_base(error_msg(lex))
+   unexpected_token(klexer_t const & lex, first_t const & expected)
+      : unexpected_token_base(error_msg(lex, expected))
    {
    }
 private:
-   static std::string error_msg(klexer_t const & lex)
+   static std::string error_msg(klexer_t const & lex, first_t const & expected)
    {
       std::stringstream ss;
-      ss << "Unexpected token `" << lex.text() << "`" << " at line " << lex.line();
+      ss << "Unexpected token `" << lex.text() << "`"
+         << " at line " << lex.line();
+      if(!expected.empty())
+         ss << " while expecting" << (expected.size() == 1 ? ": " : " one of: ");
+      bool first = true;
+      for(int tok : expected)
+      {
+         if(!first)
+            ss << ", ";
+         first = false;
+         ss << "`" << repr((token_t)tok) << "`";
+      }
       return ss.str();
    }
 };
@@ -44,7 +55,7 @@ template<class R>
 inline void check_expected(klexer_t const & lex, first_t const & toks)
 {
    if(!toks.count(lex.token()))
-      throw unexpected_token<R>(lex);
+      throw unexpected_token<R>(lex, toks);
 }
 
 template<class R>
