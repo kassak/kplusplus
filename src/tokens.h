@@ -2,6 +2,8 @@
 
 enum token_t
 {
+   TOK_EOF = 0,
+
    TOK_INT = 10,
    TOK_FLOAT,
    TOK_ID,
@@ -12,10 +14,13 @@ enum token_t
    TOK_FOR,
    TOK_WHILE,
    TOK_IF,
+   TOK_CLASS,
 
    TOK_DOT,
    TOK_COLON,
    TOK_SEMICOLON,
+
+   TOK_ASSIGNMENT,
 
    TOK_BLOCK_OPEN,
    TOK_BLOCK_CLOSE,

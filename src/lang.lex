@@ -18,6 +18,7 @@ ws [ \t\r\n]
 #include <klexer.hpp>
 #include "tokens.h"
 
+#define YY_USER_INIT yyin = input_;
 		//#define YY_DECL int yylex()
 %}
 %%
@@ -44,6 +45,10 @@ ws [ \t\r\n]
 
 "break" {
 	return TOK_BREAK;
+}
+
+"class"|"struct" {
+	return TOK_CLASS;
 }
 
 "continue" {
@@ -78,6 +83,10 @@ ws [ \t\r\n]
     return TOK_SEMICOLON;
 }
 
+"=" {
+    return TOK_ASSIGNMENT;
+}
+
 "(" {
     return TOK_BRACE_OPEN;
 }
@@ -102,9 +111,12 @@ ws [ \t\r\n]
 {ws} {
 		std::cout << "ws " << yytext << std::endl;
 }
+
+/*
 .* {
 
  std::cout << "sk " << yytext << std::endl;
 }
+*/
 
 %%

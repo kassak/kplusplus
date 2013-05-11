@@ -3,7 +3,7 @@ global_statement_list ::= <global_statement> [<global_statement_list>]_opt
 global_statement ::= <variable_definition>
                      <class_definition>
                      <function_definition>
-variable_definition ::= <type> <initialization_list>;
+variable_definition ::= <type> <variable_initialization_list>;
 variable_initialization_list ::= <variable_initialization> [, <variable_initialization_list>]_opt
 variable_initialization ::= <identifier> [= <expression>]_opt
                             <identifier> (<argument_list>)
@@ -54,3 +54,10 @@ expression_atom ::= <access_identifier>
                     NUMBER
                     (<expression>)
 expression ::= <expression_atom> [OP <expression>]_opt
+
+#FIRST-FOLLOW
+type                               {ID}     {}
+indentifier                        {ID}
+variable_definition                {ID}
+variable_initialization_list       {ID}
+variable_initialization            {ID}
