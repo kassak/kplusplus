@@ -18,20 +18,83 @@ namespace ast
       struct variable_initialization_list;
       struct expression_;
       struct expression_atom_;
+      struct access_id_;
+      struct argument_list_;
 
-      DEF_PARSER_F(expression_atom_, lex, ({TOK_FLOAT, TOK_INT, TOK_ID}))
+      FORWARD_PARSER(expression_);
+
+      DEF_PARSER_F(argument_list_, lex, ({TOK_BRACE_OPEN}))
+      {
+         check_first<argument_list_>(lex);
+         base_t::ptr_t seq = std::make_shared<sequence_t>();
+         lex.next();
+         while(lex.token() != TOK_BRACE_CLOSE)
+         {
+            base_t::ptr_t arg = parse<expression_>(lex);
+            check_expected<argument_list_>(lex, {TOK_COMMA, TOK_BRACE_CLOSE});
+            if(lex.token() == TOK_COMMA)
+               lex.next();
+         }
+         lex.next(); // consume ')'
+         return seq;
+      }
+
+      DEF_PARSER_F(access_id_, lex, ({TOK_ID}))
+      {
+         check_first<access_id_>(lex);
+         base_t::ptr_t var = std::make_shared<variable_t>(lex.text());
+         lex.next();
+         base_t::ptr_t last = var;
+         while(lex.token() == TOK_DOT)
+         {
+            lex.next();
+            check_expected<access_id_>(lex, TOK_ID);
+            base_t::ptr_t svar = std::make_shared<variable_t>(lex.text());
+            last->children.push_back(svar);
+            last = svar;
+         }
+         return var;
+      }
+
+      DEF_PARSER_F(expression_atom_, lex,
+                   ({TOK_FLOAT, TOK_INT, TOK_ID, TOK_BRACE_OPEN}))
       {
          check_first<expression_atom_>(lex);
+         base_t::ptr_t res;
          switch(lex.token())
          {
+         case TOK_BRACE_OPEN:
+            lex.next(); //consume (
+            res = parse<expression_>(lex);
+            check_expected<expression_atom_>(lex, TOK_BRACE_CLOSE);
+            lex.next(); //consume )
+            break;
          case TOK_FLOAT:
-            return std::make_shared<value_t<double>>(lex.value<double>());
+            res = std::make_shared<value_t<double>>(lex.value<double>());
+            lex.next(); //consume float
+            break;
          case TOK_INT:
-            return std::make_shared<value_t<long>>(lex.value<long>());
+            res = std::make_shared<value_t<long>>(lex.value<long>());
+            lex.next(); //consume float
+            break;
          case TOK_ID:
-            return std::make_shared<variable_t>(lex.text());
+            {
+               base_t::ptr_t aname = parse<access_id_>(lex);
+               if(lex.token() == TOK_BRACE_OPEN)
+               {
+                  base_t::ptr_t foo = std::make_shared<function_call_t>(aname);
+                  base_t::ptr_t args = parse<argument_list_>(lex);
+                  foo->children.swap(args->children);
+                  res = foo;
+               }
+               else
+                  res = aname;
+               break;
+            }
+         default:
+            throw std::logic_error("should not be");
          }
-         throw std::logic_error("should not be");
+         return res;
       }
 
       DEF_PARSER(expression_, lex)
@@ -49,7 +112,7 @@ namespace ast
          {
             if(!vars->children.empty())
             {
-               check_expected<variable_definition_>(lex, {TOK_COLON});
+               check_expected<variable_definition_>(lex, {TOK_COMMA});
                lex.next();
             }
             check_expected<variable_definition_>(lex, {TOK_ID});
@@ -58,11 +121,11 @@ namespace ast
             vars->children.push_back(var);
 
             lex.next();
-            check_expected<variable_definition_>(lex, {TOK_COLON, TOK_SEMICOLON,
+            check_expected<variable_definition_>(lex, {TOK_COMMA, TOK_SEMICOLON,
                      TOK_ASSIGNMENT, TOK_BRACE_OPEN});
             switch(lex.token())
             {
-            case TOK_COLON:
+            case TOK_COMMA:
             case TOK_SEMICOLON:
                continue;
             case TOK_ASSIGNMENT:
@@ -70,12 +133,17 @@ namespace ast
                   lex.next();
                   base_t::ptr_t expr = parse<expression_>(lex);
                   var->children.push_back(expr);
+                  break;
                }
             case TOK_BRACE_OPEN:
                {
-                  lex.next();
-                  base_t::ptr_t expr; // = parse<expression_>(lex);
-                  var->children.push_back(expr);
+                  base_t::ptr_t args = parse<argument_list_>(lex);
+                  base_t::ptr_t foo = std::make_shared<function_call_t>(
+                     std::make_shared<variable_t>(type)
+                  );
+                  foo->children.swap(args->children);
+                  var->children.push_back(foo);
+                  break;
                }
             }
          } while(lex.token() != TOK_SEMICOLON);
@@ -108,7 +176,7 @@ namespace ast
                   check_expected<global_statement_>(lex, TOK_ID);
                   lex.next();
                   check_expected<global_statement_>(lex, {TOK_BRACE_OPEN,
-                           TOK_ASSIGNMENT, TOK_COLON, TOK_SEMICOLON});
+                           TOK_ASSIGNMENT, TOK_COMMA, TOK_SEMICOLON});
                   lex.next();
                   if(lex.token() == TOK_BRACE_CLOSE)
                      is_function = true;

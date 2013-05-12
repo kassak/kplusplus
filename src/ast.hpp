@@ -14,6 +14,12 @@ namespace ast
 
       virtual ~base_t(){};
 
+      template<class T>
+      const T * get() const
+      {
+         return dynamic_cast<const T *>(this);
+      }
+
       std::vector<base_t::ptr_t> children;
    };
 
@@ -24,7 +30,6 @@ namespace ast
    struct expression_t
       : base_t
    {};
-
 
    struct variable_t
       : expression_t
@@ -40,6 +45,22 @@ namespace ast
       }
    private:
       std::string name_;
+   };
+
+   struct function_call_t
+      : expression_t
+   {
+      function_call_t(base_t::ptr_t const & name)
+         : name_(name)
+      {
+      }
+
+      base_t::ptr_t const & name() const
+      {
+         return name_;
+      }
+   private:
+      base_t::ptr_t name_;
    };
 
    template<class T>

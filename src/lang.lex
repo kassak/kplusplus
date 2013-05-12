@@ -76,7 +76,7 @@ ws [ \t\r\n]
 }
 
 "," {
-    return TOK_COLON;
+    return TOK_COMMA;
 }
 
 ";" {

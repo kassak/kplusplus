@@ -8,7 +8,18 @@ template<class R>
 inline const char * rule_name();
 
 template<class R>
-inline ast::base_t::ptr_t parse(klexer_t & lex);
+inline ast::base_t::ptr_t parse_impl(klexer_t & lex);
+
+template<class R>
+inline ast::base_t::ptr_t parse(klexer_t & lex)
+{
+   if(lex.config().verbose_parser)
+      std::cerr << "rule: -> " << rule_name<R>() << std::endl;
+   ast::base_t::ptr_t res = parse_impl<R>(lex);
+   if(lex.config().verbose_parser)
+      std::cerr << "rule: <- " << rule_name<R>() << std::endl;
+   return res;
+}
 
 template<class R>
 inline first_t first_impl();

@@ -13,7 +13,8 @@ config_t::config_t(int argc, char **argv)
    po::options_description desc("Allowed options");
    desc.add_options()
       ("help", "produce help message")
-      ("verbose_lexer", "makes lexer print tokens")
+      ("verbose_lexer",  "makes lexer print tokens")
+      ("verbose_parser", "makes parser print rules")
       ;
 
    po::variables_map vm;
@@ -26,4 +27,5 @@ config_t::config_t(int argc, char **argv)
    }
 
    verbose_lexer = vm.count("verbose_lexer");
+   verbose_parser = vm.count("verbose_parser");
 }

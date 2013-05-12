@@ -49,11 +49,13 @@ bool klexer_t::next()
    if(!out_.empty())
    {
       out_.pop_front();
+      if(config().verbose_lexer)
+         std::cerr << "token:= " << repr(token()) << "[" << text() << "]" << std::endl;
       return true;
    }
    token_ = (token_t)yylex();
    if(config().verbose_lexer)
-      std::cerr << repr(token_) << "[" << YYText() << "]" << std::endl;
+      std::cerr << "token:+ " << repr(token()) << "[" << text() << "]" << std::endl;
    return token_ != TOK_EOF;
 }
 

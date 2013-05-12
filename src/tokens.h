@@ -17,7 +17,7 @@ enum token_t
    TOK_CLASS,
 
    TOK_DOT,
-   TOK_COLON,
+   TOK_COMMA,
    TOK_SEMICOLON,
 
    TOK_ASSIGNMENT,
@@ -41,7 +41,7 @@ inline std::string repr(token_t tok)
       {TOK_ID,    "<identifier>"},
 
       {TOK_DOT,       "."},
-      {TOK_COLON,     ","},
+      {TOK_COMMA,     ","},
       {TOK_SEMICOLON, ";"},
 
       {TOK_ASSIGNMENT, "="},
