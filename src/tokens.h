@@ -50,6 +50,14 @@ inline std::string repr(token_t tok)
       {TOK_BLOCK_CLOSE,"}"},
       {TOK_BRACE_OPEN, "("},
       {TOK_BRACE_CLOSE,")"},
+
+      {TOK_BREAK,    "<break statement>"},
+      {TOK_CONTINUE, "<continue statement>"},
+      {TOK_RETURN,   "<return statement>"},
+      {TOK_FOR,      "<for statement>"},
+      {TOK_WHILE,    "<while statement>"},
+      {TOK_IF,       "<if statement>"},
+      {TOK_CLASS,    "<class statement>"},
    };
    return mp[tok];
 }

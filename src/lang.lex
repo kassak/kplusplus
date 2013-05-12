@@ -30,7 +30,7 @@ ws [ \t\r\n]
     return TOK_INT;
 }
 
-{dig}+.{dig}*([eE][+-]?{dig}+)?/{no_id} {
+{dig}+\.{dig}*([eE][+-]?{dig}+)?/{no_id} {
     value_ = strtod(yytext, 0);
     return TOK_FLOAT;
 }
@@ -104,13 +104,10 @@ ws [ \t\r\n]
 }
 
 {let_}({let_}|{dig})*/{no_id} {
-		std::cout << "id " << yytext << std::endl;
 		return TOK_ID;
 }
 
-{ws} {
-		std::cout << "ws " << yytext << std::endl;
-}
+{ws}
 
 
 %%

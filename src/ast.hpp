@@ -25,6 +25,23 @@ namespace ast
       : base_t
    {};
 
+
+   struct variable_t
+      : expression_t
+   {
+      variable_t(std::string const & name)
+         : name_(name)
+      {
+      }
+
+      std::string const & name() const
+      {
+         return name_;
+      }
+   private:
+      std::string name_;
+   };
+
    template<class T>
    struct value_t
       : expression_t
@@ -46,10 +63,10 @@ namespace ast
       : base_t
    {};
 
-   struct variable_t
+   struct variable_def_t
       : statement_t
    {
-      variable_t(std::string const & type, std::string const & name)
+      variable_def_t(std::string const & type, std::string const & name)
          : name_(name)
          , type_(type)
       {

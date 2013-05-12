@@ -15,19 +15,30 @@ klexer_t::klexer_t(std::istream& input)
    : input_(&input)
    , tracking_(false)
 {
+   value_ = 0.0;
+}
+
+config_t const & klexer_t::config() const
+{
+   return cfg_;
+}
+
+void klexer_t::configure(config_t const & cfg)
+{
+   cfg_ = cfg;
 }
 
 std::string klexer_t::text() const
 {
    if(!out_.empty())
-      return track_.front().text;
+      return out_.front().text;
    return std::string(YYText());
 }
 
 token_t klexer_t::token() const
 {
    if(!out_.empty())
-      return track_.front().token;
+      return out_.front().token;
    return token_;
 }
 
@@ -37,10 +48,13 @@ bool klexer_t::next()
       track_.emplace_back(text(), token(), pvalue(), line());
    if(!out_.empty())
    {
-      track_.pop_front();
+      out_.pop_front();
       return true;
    }
-   return (token_ = (token_t)yylex()) != TOK_EOF;
+   token_ = (token_t)yylex();
+   if(config().verbose_lexer)
+      std::cerr << repr(token_) << "[" << YYText() << "]" << std::endl;
+   return token_ != TOK_EOF;
 }
 
 void klexer_t::set_tracking(bool t)
@@ -57,14 +71,14 @@ void klexer_t::set_tracking(bool t)
 
 int klexer_t::line() const
 {
-   if(!tracking_ && !track_.empty())
-      return track_.front().lineno;
+   if(!out_.empty())
+      return out_.front().lineno;
    return lineno();
 }
 
 const klexer_t::value_t & klexer_t::pvalue() const
 {
    if(!out_.empty())
-      return track_.front().value;
+      return out_.front().value;
    return value_;
 }

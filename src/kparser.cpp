@@ -16,9 +16,30 @@ namespace ast
       struct function_definition_;
       struct variable_definition_;
       struct variable_initialization_list;
+      struct expression_;
+      struct expression_atom_;
 
-      DEF_FIRST(variable_definition_, ({TOK_ID}))
-      DEF_PARSER(variable_definition_, lex)
+      DEF_PARSER_F(expression_atom_, lex, ({TOK_FLOAT, TOK_INT, TOK_ID}))
+      {
+         check_first<expression_atom_>(lex);
+         switch(lex.token())
+         {
+         case TOK_FLOAT:
+            return std::make_shared<value_t<double>>(lex.value<double>());
+         case TOK_INT:
+            return std::make_shared<value_t<long>>(lex.value<long>());
+         case TOK_ID:
+            return std::make_shared<variable_t>(lex.text());
+         }
+         throw std::logic_error("should not be");
+      }
+
+      DEF_PARSER(expression_, lex)
+      {
+         return parse<expression_atom_>(lex);
+      }
+
+      DEF_PARSER_F(variable_definition_, lex, ({TOK_ID}))
       {
          check_first<variable_definition_>(lex);
          std::string type = lex.text();
@@ -33,7 +54,7 @@ namespace ast
             }
             check_expected<variable_definition_>(lex, {TOK_ID});
             std::string name = lex.text();
-            base_t::ptr_t var = std::make_shared<variable_t>(type, name);
+            base_t::ptr_t var = std::make_shared<variable_def_t>(type, name);
             vars->children.push_back(var);
 
             lex.next();
@@ -47,7 +68,7 @@ namespace ast
             case TOK_ASSIGNMENT:
                {
                   lex.next();
-                  base_t::ptr_t expr; // = parse<expression_>(lex);
+                  base_t::ptr_t expr = parse<expression_>(lex);
                   var->children.push_back(expr);
                }
             case TOK_BRACE_OPEN:
@@ -58,7 +79,7 @@ namespace ast
                }
             }
          } while(lex.token() != TOK_SEMICOLON);
-
+         return vars;
       }
 
       DEF_PARSER(function_definition_, lex)
@@ -71,8 +92,7 @@ namespace ast
          return nullptr;
       }
 
-      DEF_FIRST(global_statement_, ({TOK_ID, TOK_CLASS}))
-      DEF_PARSER(global_statement_, lex)
+      DEF_PARSER_F(global_statement_, lex, ({TOK_ID, TOK_CLASS}))
       {
          check_first<global_statement_>(lex);
          switch(lex.token())
@@ -114,8 +134,15 @@ namespace ast
          base_t::ptr_t seq = std::make_shared<sequence_t>();
          while(lex.next())
          {
-            base_t::ptr_t stmt = parse<global_statement_>(lex);
-            seq->children.push_back(stmt);
+            try
+            {
+               base_t::ptr_t stmt = parse<global_statement_>(lex);
+               seq->children.push_back(stmt);
+            }
+            catch(unexpected_token_base & e)
+            {
+               std::cerr << "Error: " << e.what() << std::endl;
+            }
          }
          return seq;
       }
@@ -128,9 +155,10 @@ namespace ast
 #include "undefine_parser.hpp"
    }
 
-   base_t::ptr_t parse(std::istream & stream)
+   base_t::ptr_t parse(std::istream & stream, config_t const & cfg)
    {
       klexer_t lex(stream);
+      lex.configure(cfg);
       return parse<program_>(lex);
    }
 }

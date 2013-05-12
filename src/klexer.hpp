@@ -1,9 +1,8 @@
 #pragma once
-#include <FlexLexer.h>
 #include "tokens.h"
+#include "config.hpp"
+#include <FlexLexer.h>
 #include <boost/variant.hpp>
-#include <stdexcept>
-#include <string>
 
 struct klexer_t;
 
@@ -31,6 +30,9 @@ struct klexer_t : private yyFlexLexer
    int line() const;
 
    bool next();
+
+   config_t const & config() const;
+   void configure(config_t const & cfg);
 private:
    int yylex();
 
@@ -57,6 +59,7 @@ protected:
    value_t value_;
    std::istream * input_;
    bool tracking_;
+   config_t cfg_;
    std::list<state_t> track_, out_;
 };
 

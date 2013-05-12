@@ -5,6 +5,9 @@ typedef
   first_t;
 
 template<class R>
+inline const char * rule_name();
+
+template<class R>
 inline ast::base_t::ptr_t parse(klexer_t & lex);
 
 template<class R>
@@ -35,7 +38,7 @@ private:
    static std::string error_msg(klexer_t const & lex, first_t const & expected)
    {
       std::stringstream ss;
-      ss << "Unexpected token `" << lex.text() << "`"
+      ss << "Unexpected token `" << lex.text() << "`[" << repr(lex.token()) << "]"
          << " at line " << lex.line();
       if(!expected.empty())
          ss << " while expecting" << (expected.size() == 1 ? ": " : " one of: ");
@@ -47,6 +50,7 @@ private:
          first = false;
          ss << "`" << repr((token_t)tok) << "`";
       }
+      ss << " at rule `" << rule_name<R>() << "`";
       return ss.str();
    }
 };
