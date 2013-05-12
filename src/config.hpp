@@ -7,4 +7,5 @@ struct config_t
 
    bool verbose_lexer;
    bool verbose_parser;
+   bool dump_ast;
 };

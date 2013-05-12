@@ -21,6 +21,10 @@ enum token_t
    TOK_SEMICOLON,
 
    TOK_ASSIGNMENT,
+   TOK_PLUS,
+   TOK_MINUS,
+   TOK_MULT,
+   TOK_DIVIDE,
 
    TOK_BLOCK_OPEN,
    TOK_BLOCK_CLOSE,
@@ -45,6 +49,10 @@ inline std::string repr(token_t tok)
       {TOK_SEMICOLON, ";"},
 
       {TOK_ASSIGNMENT, "="},
+      {TOK_PLUS,       "+"},
+      {TOK_MINUS,      "-"},
+      {TOK_MULT,       "*"},
+      {TOK_DIVIDE,     "/"},
 
       {TOK_BLOCK_OPEN, "{"},
       {TOK_BLOCK_CLOSE,"}"},

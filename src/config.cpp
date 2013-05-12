@@ -15,6 +15,7 @@ config_t::config_t(int argc, char **argv)
       ("help", "produce help message")
       ("verbose_lexer",  "makes lexer print tokens")
       ("verbose_parser", "makes parser print rules")
+      ("dump_ast",       "dumps ast in dot format after parsing")
       ;
 
    po::variables_map vm;
@@ -28,4 +29,5 @@ config_t::config_t(int argc, char **argv)
 
    verbose_lexer = vm.count("verbose_lexer");
    verbose_parser = vm.count("verbose_parser");
+   dump_ast = vm.count("dump_ast");
 }

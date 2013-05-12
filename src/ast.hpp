@@ -13,6 +13,10 @@ namespace ast
          ptr_t;
 
       virtual ~base_t(){};
+      virtual std::string repr() const
+      {
+         return "base";
+      }
 
       template<class T>
       const T * get() const
@@ -25,7 +29,12 @@ namespace ast
 
    struct sequence_t
       : base_t
-   {};
+   {
+      std::string repr() const
+      {
+         return "seq";
+      }
+   };
 
    struct expression_t
       : base_t
@@ -43,6 +52,14 @@ namespace ast
       {
          return name_;
       }
+
+      std::string repr() const
+      {
+         if(children.empty())
+            return name();
+         else
+            return name() + "." + children.front()->repr();
+      }
    private:
       std::string name_;
    };
@@ -58,6 +75,11 @@ namespace ast
       base_t::ptr_t const & name() const
       {
          return name_;
+      }
+
+      std::string repr() const
+      {
+         return name()->repr() + "()";
       }
    private:
       base_t::ptr_t name_;
@@ -76,13 +98,26 @@ namespace ast
       {
          return value_;
       }
+
+      std::string repr() const
+      {
+         std::stringstream ss;
+         ss << value_;
+         return ss.str();
+      }
+
    private:
       T value_;
    };
 
    struct statement_t
       : base_t
-   {};
+   {
+      std::string repr() const
+      {
+         return "stmt";
+      }
+   };
 
    struct variable_def_t
       : statement_t
@@ -93,8 +128,21 @@ namespace ast
       {
       }
 
-      std::string const & name();
-      std::string const & type();
+      std::string const & name() const
+      {
+         return name_;
+      }
+
+      std::string const & type() const
+      {
+         return type_;
+      }
+
+
+      std::string repr() const
+      {
+         return type() + " " + name();
+      }
    private:
       std::string name_;
       std::string type_;
@@ -102,10 +150,43 @@ namespace ast
 
    struct binop_t
       : expression_t
-   {};
-
-   struct assignment_t
-      : binop_t
    {
+      enum bo_t
+      {
+         bo_assign, bo_plus, bo_minus, bo_mult, bo_div
+      };
+
+      binop_t(bo_t type)
+         : type_(type)
+      {
+      }
+
+      bo_t type() const
+      {
+         return type_;
+      }
+
+      std::string repr() const
+      {
+         switch(type())
+         {
+         case bo_assign:
+            return "=";
+         case bo_plus:
+            return "+";
+         case bo_minus:
+            return "-";
+         case bo_div:
+            return "/";
+         case bo_mult:
+            return "*";
+         default:
+            return "unk_op";
+         }
+      }
+
+   private:
+      bo_t type_;
    };
+
 }

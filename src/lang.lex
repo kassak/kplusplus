@@ -23,9 +23,7 @@ ws [ \t\r\n]
 %}
 %%
 
-0[xX]{hex}+|[+-]?{dig}+/{no_id} {
-//yylval.iValue = strtol(yytext, 0, 0);
-//std::cout << "he " << yytext << std::endl;
+0[xX]{hex}+|{dig}+/{no_id} {
     value_ = strtol(yytext, 0, 0);
     return TOK_INT;
 }
@@ -85,6 +83,22 @@ ws [ \t\r\n]
 
 "=" {
     return TOK_ASSIGNMENT;
+}
+
+"+" {
+    return TOK_PLUS;
+}
+
+"-" {
+    return TOK_MINUS;
+}
+
+"*" {
+    return TOK_MULT;
+}
+
+"/" {
+    return TOK_DIVIDE;
 }
 
 "(" {

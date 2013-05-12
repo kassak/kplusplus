@@ -31,6 +31,7 @@ namespace ast
          while(lex.token() != TOK_BRACE_CLOSE)
          {
             base_t::ptr_t arg = parse<expression_>(lex);
+            seq->children.push_back(arg);
             check_expected<argument_list_>(lex, {TOK_COMMA, TOK_BRACE_CLOSE});
             if(lex.token() == TOK_COMMA)
                lex.next();
@@ -57,12 +58,17 @@ namespace ast
       }
 
       DEF_PARSER_F(expression_atom_, lex,
-                   ({TOK_FLOAT, TOK_INT, TOK_ID, TOK_BRACE_OPEN}))
+                   ({TOK_FLOAT, TOK_INT, TOK_ID, TOK_BRACE_OPEN, TOK_MINUS}))
       {
          check_first<expression_atom_>(lex);
          base_t::ptr_t res;
          switch(lex.token())
          {
+         case TOK_MINUS:
+            lex.next(); //consume -
+            res = std::make_shared<binop_t>(binop_t::bo_minus);
+            res->children.push_back(parse<expression_atom_>(lex));
+            break;
          case TOK_BRACE_OPEN:
             lex.next(); //consume (
             res = parse<expression_>(lex);
@@ -99,7 +105,94 @@ namespace ast
 
       DEF_PARSER(expression_, lex)
       {
-         return parse<expression_atom_>(lex);
+         struct h
+         {
+            static binop_t::bo_t from_token(token_t tok)
+            {
+               switch(tok)
+               {
+               case TOK_ASSIGNMENT:
+                  return binop_t::bo_assign;
+               case TOK_PLUS:
+                  return binop_t::bo_plus;
+               case TOK_MINUS:
+                  return binop_t::bo_minus;
+               case TOK_MULT:
+                  return binop_t::bo_mult;
+               case TOK_DIVIDE:
+                  return binop_t::bo_div;
+               default:
+                  throw std::logic_error("should not be");
+               }
+            }
+
+            static int priority(binop_t::bo_t op)
+            {
+               switch(op)
+               {
+               case binop_t::bo_assign:
+                  return -1;
+               case binop_t::bo_plus:
+                  return 1;
+               case binop_t::bo_minus:
+                  return 1;
+               case binop_t::bo_mult:
+                  return 2;
+               case binop_t::bo_div:
+                  return 2;
+               default:
+                  throw std::logic_error("should not be");
+               }
+            }
+
+            static bool lassoc(binop_t::bo_t op)
+            {
+               switch(op)
+               {
+                  case binop_t::bo_assign:
+                     return false;
+                  default:
+                     return true;
+               }
+            }
+         };
+         std::vector<base_t::ptr_t> atoms;
+         std::vector<binop_t::bo_t> bops;
+         atoms.push_back(parse<expression_atom_>(lex));
+         static const first_t ops = {TOK_ASSIGNMENT, TOK_PLUS, TOK_MINUS,
+                                     TOK_MULT, TOK_DIVIDE};
+         while(ops.count(lex.token()))
+         {
+            binop_t::bo_t op = h::from_token(lex.token());
+            int p = h::priority(op);
+            //fold
+            while(!bops.empty() && (h::priority(bops.back()) > p || (h::priority(bops.back()) == p && h::lassoc(op))))
+            {
+               binop_t::bo_t top = bops.back();
+               bops.pop_back();
+               base_t::ptr_t res = std::make_shared<binop_t>(top);
+               res->children.push_back(atoms.back());
+               atoms.pop_back();
+               res->children.push_back(atoms.back());
+               std::swap(res->children[0], res->children[1]);
+               atoms.pop_back();
+               atoms.push_back(res);
+            }
+
+            lex.next(); // consume op
+            bops.push_back(op);
+            atoms.push_back(parse<expression_atom_>(lex));
+         }
+
+         base_t::ptr_t res = atoms.back();
+         for(int i = bops.size()-1; i >= 0 ; --i)
+         {
+            base_t::ptr_t new_res = std::make_shared<binop_t>(bops[i]);
+            new_res->children.push_back(atoms[i]);
+            new_res->children.push_back(res);
+            res = new_res;
+         }
+         return res;
       }
 
       DEF_PARSER_F(variable_definition_, lex, ({TOK_ID}))
