@@ -20,6 +20,9 @@ namespace ast
       struct expression_atom_;
       struct access_id_;
       struct argument_list_;
+      struct argument_definition_list_;
+      struct statements_block_;
+      struct statement_;
 
       FORWARD_PARSER(expression_);
 
@@ -243,9 +246,88 @@ namespace ast
          return vars;
       }
 
-      DEF_PARSER(function_definition_, lex)
+      DEF_PARSER_F(argument_definition_list_, lex, ({TOK_BRACE_OPEN}))
       {
-         return nullptr;
+         check_first<argument_definition_list_>(lex);
+         lex.next();
+         base_t::ptr_t seq = std::make_shared<sequence_t>();
+         while(lex.token() != TOK_BRACE_CLOSE)
+         {
+            std::string name, type;
+            check_expected<argument_definition_list_>(lex, TOK_ID);
+            type = lex.text();
+            lex.next();
+            check_expected<argument_definition_list_>(lex, TOK_ID);
+            name = lex.text();
+            lex.next();
+            base_t::ptr_t arg = std::make_shared<variable_def_t>(type, name);
+            seq->children.push_back(arg);
+            if(lex.token() == TOK_COMMA)
+            {
+               lex.next();
+               check_expected<argument_definition_list_>(lex, TOK_ID);
+            }
+            else
+               check_expected<argument_definition_list_>(lex, TOK_BRACE_CLOSE);
+         }
+         check_expected<argument_definition_list_>(lex, TOK_BRACE_CLOSE);
+         lex.next();//consume )
+
+         return seq;
+      }
+
+      DEF_PARSER(statement_, lex)
+      {
+         base_t::ptr_t stmt;
+         switch(lex.token())
+         {
+         case TOK_SEMICOLON: //empty statement
+            {
+               stmt = std::make_shared<sequence_t>();
+               lex.next();
+               break;
+            }
+         case TOK_BLOCK_OPEN: //inner block
+            {
+               stmt = parse<statements_block_>(lex);
+               break;
+            }
+         default:
+            throw unexpected_token<statement_>(lex, {});
+         }
+         return stmt;
+      }
+
+      DEF_PARSER_F(statements_block_, lex, ({TOK_BLOCK_OPEN}))
+      {
+         check_first<statements_block_>(lex);
+         lex.next();
+
+         base_t::ptr_t seq = std::make_shared<sequence_t>();
+
+         while(lex.token() != TOK_BLOCK_CLOSE)
+         {
+            base_t::ptr_t stmt = parse<statement_>(lex);
+            seq->children.push_back(stmt);
+         }
+         check_expected<statements_block_>(lex, TOK_BLOCK_CLOSE);
+         lex.next();
+         return seq;
+      }
+
+      DEF_PARSER_F(function_definition_, lex, ({TOK_ID}))
+      {
+         check_first<function_definition_>(lex);
+         std::string name, type;
+         type = lex.text();
+         lex.next();
+         check_expected<function_definition_>(lex, TOK_ID);
+         name = lex.text();
+         base_t::ptr_t foo = std::make_shared<function_def_t>(type, name);
+         lex.next();
+         foo->children.push_back(parse<argument_definition_list_>(lex));
+         foo->children.push_back(parse<statements_block_>(lex));
+         return foo;
       }
 
       DEF_PARSER(class_definition_, lex)

@@ -119,6 +119,35 @@ namespace ast
       }
    };
 
+   struct function_def_t
+      : statement_t
+   {
+      function_def_t(std::string const & type, std::string const & name)
+         : name_(name)
+         , type_(type)
+      {
+      }
+
+      std::string const & name() const
+      {
+         return name_;
+      }
+
+      std::string const & type() const
+      {
+         return type_;
+      }
+
+
+      std::string repr() const
+      {
+         return type() + " " + name() + "()";
+      }
+   private:
+      std::string name_;
+      std::string type_;
+   };
+
    struct variable_def_t
       : statement_t
    {
