@@ -314,6 +314,79 @@ namespace ast
          return stmt;
       }
 
+      DEF_PARSER_F(if_stmt_, lex, ({TOK_IF}))
+      {
+         check_first<if_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<if_stmt_t>();
+         lex.next(); // consume if
+         check_expected<if_stmt_>(lex, TOK_BRACE_OPEN);
+         lex.next(); // consume (
+         stmt->children.push_back(parse<expression_>(lex));
+         check_expected<if_stmt_>(lex, TOK_BRACE_CLOSE);
+         lex.next(); // consume )
+         stmt->children.push_back(parse<statement_or_block_>(lex));
+         if(lex.token() == TOK_ELSE)
+            {
+               lex.next(); // consume else
+               stmt->children.push_back(parse<statement_or_block_>(lex));
+            }
+         else
+            stmt->children.push_back(nullptr);
+         return stmt;
+      }
+
+      DEF_PARSER_F(for_stmt_, lex, ({TOK_FOR}))
+      {
+         check_first<for_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<for_stmt_t>();
+         lex.next(); // consume if
+         check_expected<if_stmt_>(lex, TOK_BRACE_OPEN);
+         lex.next(); // consume (
+         stmt->children.push_back(parse<expression_>(lex));
+         check_expected<if_stmt_>(lex, TOK_BRACE_CLOSE);
+         lex.next(); // consume )
+         stmt->children.push_back(parse<statement_or_block_>(lex));
+         if(lex.token() == TOK_ELSE)
+            {
+               lex.next(); // consume else
+               stmt->children.push_back(parse<statement_or_block_>(lex));
+            }
+         else
+            stmt->children.push_back(nullptr);
+         return stmt;
+      }
+
+      DEF_PARSER_F(return_stmt_, lex, ({TOK_RETURN}))
+      {
+         check_first<return_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<return_stmt_t>();
+         lex.next(); // consume return
+         stmt->children.push_back(parse<expression_>(lex));
+         check_expected<return_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         return stmt;
+       }
+
+      DEF_PARSER_F(continue_stmt_, lex, ({TOK_CONTINUE}))
+      {
+         check_first<continue_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<continue_stmt_t>();
+         lex.next(); // consume continue
+         check_expected<continue_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         return stmt;
+      }
+
+      DEF_PARSER_F(break_stmt_, lex, ({TOK_BREAK}))
+      {
+         check_first<break_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<break_stmt_t>();
+         lex.next(); // consume break
+         check_expected<break_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         return stmt;
+      }
+
       DEF_PARSER(statement_, lex)
       {
          base_t::ptr_t stmt;
@@ -332,14 +405,7 @@ namespace ast
             }
          case TOK_ID: // expression or variable def
             {
-               bool is_expression = true;
-               {
-                  track_guard_t _(lex);
-                  lex.next();
-                  if(lex.token() == TOK_ID)
-                     is_expression = false;
-               }
-               if(is_expression)
+               if(!lookahead(lex, {TOK_ID, TOK_ID}))
                {
                   stmt = parse<expression_>(lex);
                   check_expected<statement_>(lex, TOK_SEMICOLON);
@@ -353,9 +419,41 @@ namespace ast
                }
                break;
             }
+         case TOK_FLOAT:
+         case TOK_INT:
+            {
+               stmt = parse<expression_>(lex);
+               check_expected<statement_>(lex, TOK_SEMICOLON);
+               lex.next(); //consume ;
+            }
          case TOK_WHILE: // while
             {
                stmt = parse<while_stmt_>(lex);
+               break;
+            }
+         case TOK_FOR: // for
+            {
+               stmt = parse<for_stmt_>(lex);
+               break;
+            }
+         case TOK_IF: // if
+            {
+               stmt = parse<if_stmt_>(lex);
+               break;
+            }
+         case TOK_RETURN: // return
+            {
+               stmt = parse<return_stmt_>(lex);
+               break;
+            }
+         case TOK_CONTINUE: // continue
+            {
+               stmt = parse<continue_stmt_>(lex);
+               break;
+            }
+         case TOK_BREAK: // break
+            {
+               stmt = parse<break_stmt_>(lex);
                break;
             }
          default:
@@ -422,6 +520,7 @@ namespace ast
             return parse<class_definition_>(lex);
          case TOK_ID:
             {
+               /*
                bool is_function;
                {
                   track_guard_t _(lex);
@@ -440,8 +539,9 @@ namespace ast
                   }
                   else
                      is_function = false;
-               }
-               if(is_function)
+               }*/
+               if(lookahead(TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_BRACE_CLOSE)
+                     || lookahead(TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_ID, TOK_ID))
                   return parse<function_definition_>(lex);
                else
                   return parse<variable_definition_>(lex);

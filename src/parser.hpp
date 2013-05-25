@@ -31,6 +31,15 @@ inline const first_t & first()
    return tmp;
 }
 
+bool lookahead(klexer_t & lex, std::vector<int> const & pattern)
+{
+   track_guard_t _(lex);
+   for(size_t i = 0; i < pattern.size(); ++i, lex.next())
+      if(lex.token() != pattern[i])
+         return false;
+   return true;
+}
+
 struct unexpected_token_base : std::runtime_error
 {
    unexpected_token_base(std::string const & s)

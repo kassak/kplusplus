@@ -20,6 +20,12 @@ namespace ast
             return s.str();
          }
 
+         void null()
+         {
+            std::string my_name = get_name(number_++);
+            ss_ << my_name << " [label=\"null\"];" << std::endl;
+         }
+
          void visit(base_t::ptr_t const & p)
          {
             std::string my_name = get_name(number_++);
@@ -29,7 +35,10 @@ namespace ast
             for(base_t::ptr_t const & c : p->children)
             {
                std::string c_name = get_name(number_);
-               visit(c);
+               if(c)
+                  visit(c);
+               else
+                  null();
                ss_ << my_name << " -> " << c_name << "[];" << std::endl;
             }
          }
