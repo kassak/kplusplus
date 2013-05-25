@@ -61,3 +61,37 @@ indentifier                        {ID}
 variable_definition                {ID}
 variable_initialization_list       {ID}
 variable_initialization            {ID}
+
+      DEF_PARSER_F(for_stmt_, lex, ({TOK_FOR}))
+      {
+         check_first<for_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<for_stmt_t>();
+         lex.next(); // consume for
+         check_expected<for_stmt_>(lex, TOK_BRACE_OPEN);
+         lex.next(); // consume (
+         base_t::ptr_t for1;
+         if(lex.token() != TOK_SEMICOLON)
+         {
+            if(lookahead(lex, {TOK_ID, TOK_ID}))
+               for1 = parse<variable_definition_>(lex);
+            else
+               for1 = parse<expression_>(lex);
+         }
+         check_expected<for_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         base_t::ptr_t for2;
+         if(lex.token() != TOK_SEMICOLON)
+            for2 = parse<expression_>(lex);
+         check_expected<for_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         base_t::ptr_t for3;
+         if(lex.token() != TOK_BRACE_CLOSE)
+            for3 = parse<expression_>(lex);
+         check_expected<while_stmt_>(lex, TOK_BRACE_CLOSE);
+         lex.next(); // consume )
+         stmt->children.push_back(for1);
+         stmt->children.push_back(for2);
+         stmt->children.push_back(for3);
+         stmt->children.push_back(parse<statement_or_block_>(lex));
+         return stmt;
+       }

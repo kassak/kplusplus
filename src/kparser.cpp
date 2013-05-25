@@ -339,20 +339,33 @@ namespace ast
       {
          check_first<for_stmt_>(lex);
          base_t::ptr_t stmt = std::make_shared<for_stmt_t>();
-         lex.next(); // consume if
-         check_expected<if_stmt_>(lex, TOK_BRACE_OPEN);
+         lex.next(); // consume for
+         check_expected<for_stmt_>(lex, TOK_BRACE_OPEN);
          lex.next(); // consume (
-         stmt->children.push_back(parse<expression_>(lex));
-         check_expected<if_stmt_>(lex, TOK_BRACE_CLOSE);
+         base_t::ptr_t for1;
+         if(lex.token() != TOK_SEMICOLON)
+         {
+            if(lookahead(lex, {TOK_ID, TOK_ID}))
+               for1 = parse<variable_definition_>(lex);
+            else
+               for1 = parse<expression_>(lex);
+         }
+         check_expected<for_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         base_t::ptr_t for2;
+         if(lex.token() != TOK_SEMICOLON)
+            for2 = parse<expression_>(lex);
+         check_expected<for_stmt_>(lex, TOK_SEMICOLON);
+         lex.next();
+         base_t::ptr_t for3;
+         if(lex.token() != TOK_BRACE_CLOSE)
+            for3 = parse<expression_>(lex);
+         check_expected<while_stmt_>(lex, TOK_BRACE_CLOSE);
          lex.next(); // consume )
+         stmt->children.push_back(for1);
+         stmt->children.push_back(for2);
+         stmt->children.push_back(for3);
          stmt->children.push_back(parse<statement_or_block_>(lex));
-         if(lex.token() == TOK_ELSE)
-            {
-               lex.next(); // consume else
-               stmt->children.push_back(parse<statement_or_block_>(lex));
-            }
-         else
-            stmt->children.push_back(nullptr);
          return stmt;
       }
 
@@ -540,8 +553,8 @@ namespace ast
                   else
                      is_function = false;
                }*/
-               if(lookahead(TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_BRACE_CLOSE)
-                     || lookahead(TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_ID, TOK_ID))
+               if(lookahead(lex, {TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_BRACE_CLOSE})
+                  || lookahead(lex, {TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_ID, TOK_ID}))
                   return parse<function_definition_>(lex);
                else
                   return parse<variable_definition_>(lex);
