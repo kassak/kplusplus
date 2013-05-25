@@ -41,31 +41,35 @@ ws [ \t\r\n]
     return TOK_CHAR_LITERAL;
 }
 
-"break" {
+"break"/{no_id} {
 	return TOK_BREAK;
 }
 
-"class"|"struct" {
+("class"|"struct")/{no_id} {
 	return TOK_CLASS;
 }
 
-"continue" {
+"continue"/{no_id} {
 	return TOK_CONTINUE;
 }
 
-"if" {
+"if"/{no_id} {
     return TOK_IF;
 }
 
-"while" {
+"else"/{no_id} {
+    return TOK_ELSE;
+}
+
+"while"/{no_id} {
     return TOK_WHILE;
 }
 
-"for" {
+"for"/{no_id} {
     return TOK_FOR;
 }
 
-"return" {
+"return"/{no_id} {
     return TOK_RETURN;
 }
 
@@ -79,6 +83,26 @@ ws [ \t\r\n]
 
 ";" {
     return TOK_SEMICOLON;
+}
+
+"<=" {
+    return TOK_LE;
+}
+
+">=" {
+    return TOK_GE;
+}
+
+"==" {
+    return TOK_EQ;
+}
+
+"<" {
+    return TOK_LT;
+}
+
+">" {
+    return TOK_GT;
 }
 
 "=" {

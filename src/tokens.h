@@ -14,12 +14,18 @@ enum token_t
    TOK_FOR,
    TOK_WHILE,
    TOK_IF,
+   TOK_ELSE,
    TOK_CLASS,
 
    TOK_DOT,
    TOK_COMMA,
    TOK_SEMICOLON,
 
+   TOK_LE,
+   TOK_GE,
+   TOK_EQ,
+   TOK_GT,
+   TOK_LT,
    TOK_ASSIGNMENT,
    TOK_PLUS,
    TOK_MINUS,
@@ -48,6 +54,11 @@ inline std::string repr(token_t tok)
       {TOK_COMMA,     ","},
       {TOK_SEMICOLON, ";"},
 
+      {TOK_GE,         ">="},
+      {TOK_LE,         "<="},
+      {TOK_EQ,         "=="},
+      {TOK_LT,         "<"},
+      {TOK_GT,         ">"},
       {TOK_ASSIGNMENT, "="},
       {TOK_PLUS,       "+"},
       {TOK_MINUS,      "-"},
@@ -65,6 +76,7 @@ inline std::string repr(token_t tok)
       {TOK_FOR,      "<for statement>"},
       {TOK_WHILE,    "<while statement>"},
       {TOK_IF,       "<if statement>"},
+      {TOK_ELSE,     "<else statement>"},
       {TOK_CLASS,    "<class statement>"},
    };
    return mp[tok];

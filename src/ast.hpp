@@ -177,12 +177,66 @@ namespace ast
       std::string type_;
    };
 
+   struct while_stmt_t
+      : statement_t
+   {
+      std::string repr() const
+      {
+         return "while";
+      }
+   };
+
+   struct for_stmt_t
+      : statement_t
+   {
+      std::string repr() const
+      {
+         return "for";
+      }
+   };
+
+   struct return_stmt_t
+      : statement_t
+   {
+      std::string repr() const
+      {
+         return "return";
+      }
+   };
+
+   struct break_stmt_t
+      : statement_t
+   {
+      std::string repr() const
+      {
+         return "break";
+      }
+   };
+
+   struct continue_stmt_t
+      : statement_t
+   {
+      std::string repr() const
+      {
+         return "continue";
+      }
+   };
+
+   struct if_stmt_t
+      : statement_t
+   {
+      std::string repr() const
+      {
+         return "if";
+      }
+   };
+
    struct binop_t
       : expression_t
    {
       enum bo_t
       {
-         bo_assign, bo_plus, bo_minus, bo_mult, bo_div
+         bo_assign, bo_plus, bo_minus, bo_mult, bo_div, bo_eq, bo_le, bo_ge, bo_lt, bo_gt
       };
 
       binop_t(bo_t type)
@@ -209,6 +263,16 @@ namespace ast
             return "/";
          case bo_mult:
             return "*";
+         case bo_lt:
+            return "<";
+         case bo_gt:
+            return ">";
+         case bo_eq:
+            return "==";
+         case bo_le:
+            return "<=";
+         case bo_ge:
+            return ">=";
          default:
             return "unk_op";
          }

@@ -23,6 +23,13 @@ namespace ast
       struct argument_definition_list_;
       struct statements_block_;
       struct statement_;
+      struct statement_or_block_;
+      struct while_stmt_;
+      struct for_stmt_;
+      struct if_stmt_;
+      struct return_stmt_;
+      struct break_stmt_;
+      struct continue_stmt_;
 
       FORWARD_PARSER(expression_);
 
@@ -124,6 +131,16 @@ namespace ast
                   return binop_t::bo_mult;
                case TOK_DIVIDE:
                   return binop_t::bo_div;
+               case TOK_LE:
+                  return binop_t::bo_le;
+               case TOK_GE:
+                  return binop_t::bo_ge;
+               case TOK_EQ:
+                  return binop_t::bo_eq;
+               case TOK_LT:
+                  return binop_t::bo_lt;
+               case TOK_GT:
+                  return binop_t::bo_gt;
                default:
                   throw std::logic_error("should not be");
                }
@@ -135,14 +152,21 @@ namespace ast
                {
                case binop_t::bo_assign:
                   return -1;
+               case binop_t::bo_eq:
+                  return 2;
+               case binop_t::bo_le:
+               case binop_t::bo_ge:
+               case binop_t::bo_lt:
+               case binop_t::bo_gt:
+                  return 3;
                case binop_t::bo_plus:
-                  return 1;
+                  return 4;
                case binop_t::bo_minus:
-                  return 1;
+                  return 4;
                case binop_t::bo_mult:
-                  return 2;
+                  return 5;
                case binop_t::bo_div:
-                  return 2;
+                  return 6;
                default:
                   throw std::logic_error("should not be");
                }
@@ -163,7 +187,7 @@ namespace ast
          std::vector<binop_t::bo_t> bops;
          atoms.push_back(parse<expression_atom_>(lex));
          static const first_t ops = {TOK_ASSIGNMENT, TOK_PLUS, TOK_MINUS,
-                                     TOK_MULT, TOK_DIVIDE};
+                                     TOK_MULT, TOK_DIVIDE, TOK_LE, TOK_GE, TOK_EQ, TOK_LT, TOK_GT};
          while(ops.count(lex.token()))
          {
             binop_t::bo_t op = h::from_token(lex.token());
@@ -276,6 +300,20 @@ namespace ast
          return seq;
       }
 
+      DEF_PARSER_F(while_stmt_, lex, ({TOK_WHILE}))
+      {
+         check_first<while_stmt_>(lex);
+         base_t::ptr_t stmt = std::make_shared<while_stmt_t>();
+         lex.next(); // consume while
+         check_expected<while_stmt_>(lex, TOK_BRACE_OPEN);
+         lex.next(); // consume (
+         stmt->children.push_back(parse<expression_>(lex));
+         check_expected<while_stmt_>(lex, TOK_BRACE_CLOSE);
+         lex.next(); // consume )
+         stmt->children.push_back(parse<statement_or_block_>(lex));
+         return stmt;
+      }
+
       DEF_PARSER(statement_, lex)
       {
          base_t::ptr_t stmt;
@@ -290,6 +328,34 @@ namespace ast
          case TOK_BLOCK_OPEN: //inner block
             {
                stmt = parse<statements_block_>(lex);
+               break;
+            }
+         case TOK_ID: // expression or variable def
+            {
+               bool is_expression = true;
+               {
+                  track_guard_t _(lex);
+                  lex.next();
+                  if(lex.token() == TOK_ID)
+                     is_expression = false;
+               }
+               if(is_expression)
+               {
+                  stmt = parse<expression_>(lex);
+                  check_expected<statement_>(lex, TOK_SEMICOLON);
+                  lex.next(); //consume ;
+               }
+               else
+               {
+                  stmt = parse<variable_definition_>(lex);
+                  check_expected<statement_>(lex, TOK_SEMICOLON);
+                  lex.next(); //consume ;
+               }
+               break;
+            }
+         case TOK_WHILE: // while
+            {
+               stmt = parse<while_stmt_>(lex);
                break;
             }
          default:
@@ -313,6 +379,18 @@ namespace ast
          check_expected<statements_block_>(lex, TOK_BLOCK_CLOSE);
          lex.next();
          return seq;
+      }
+
+      DEF_PARSER(statement_or_block_, lex)
+      {
+         if(lex.token() == TOK_BLOCK_OPEN)
+            return parse<statements_block_>(lex);
+         else
+         {
+            base_t::ptr_t seq = std::make_shared<sequence_t>();
+            seq->children.push_back(parse<statement_>(lex));
+            return seq;
+         }
       }
 
       DEF_PARSER_F(function_definition_, lex, ({TOK_ID}))
