@@ -36,7 +36,7 @@ namespace ast
       DEF_PARSER_F(argument_list_, lex, ({TOK_BRACE_OPEN}))
       {
          check_first<argument_list_>(lex);
-         base_t::ptr_t seq = std::make_shared<sequence_t>();
+         base_t::ptr_t seq = std::make_shared<arg_sequence_t>();
          lex.next();
          while(lex.token() != TOK_BRACE_CLOSE)
          {
@@ -226,7 +226,7 @@ namespace ast
       {
          check_first<variable_definition_>(lex);
          std::string type = lex.text();
-         base_t::ptr_t vars = std::make_shared<sequence_t>();
+         base_t::ptr_t vars = std::make_shared<var_sequence_t>();
          lex.next();
          do
          {
@@ -274,7 +274,7 @@ namespace ast
       {
          check_first<argument_definition_list_>(lex);
          lex.next();
-         base_t::ptr_t seq = std::make_shared<sequence_t>();
+         base_t::ptr_t seq = std::make_shared<arg_sequence_t>();
          while(lex.token() != TOK_BRACE_CLOSE)
          {
             std::string name, type;
@@ -407,7 +407,7 @@ namespace ast
          {
          case TOK_SEMICOLON: //empty statement
             {
-               stmt = std::make_shared<sequence_t>();
+               stmt = std::make_shared<stmt_sequence_t>();
                lex.next();
                break;
             }
@@ -480,7 +480,7 @@ namespace ast
          check_first<statements_block_>(lex);
          lex.next();
 
-         base_t::ptr_t seq = std::make_shared<sequence_t>();
+         base_t::ptr_t seq = std::make_shared<stmt_sequence_t>();
 
          while(lex.token() != TOK_BLOCK_CLOSE)
          {
@@ -498,7 +498,7 @@ namespace ast
             return parse<statements_block_>(lex);
          else
          {
-            base_t::ptr_t seq = std::make_shared<sequence_t>();
+            base_t::ptr_t seq = std::make_shared<stmt_sequence_t>();
             seq->children.push_back(parse<statement_>(lex));
             return seq;
          }
@@ -565,7 +565,7 @@ namespace ast
 
       DEF_PARSER(global_statement_list_, lex)
       {
-         base_t::ptr_t seq = std::make_shared<sequence_t>();
+         base_t::ptr_t seq = std::make_shared<stmt_sequence_t>();
          while(lex.next())
          {
             try
