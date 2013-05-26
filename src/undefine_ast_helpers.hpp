@@ -1,0 +1,4 @@
+#undef AST_NODE
+#undef AST_NODE_TEMP
+#undef AST_NODE_TEMP_FWD
+#undef AST_HELPER

@@ -15,7 +15,8 @@ namespace ast
 
       nt_variable,
       nt_function_call,
-      nt_value,
+      nt_int_value,
+      nt_float_value,
       nt_binop,
 
       nt_while,
@@ -64,8 +65,9 @@ namespace ast
       }
    };
 
-   struct var_sequence_t
-      : base_mixin_t<nt_var_sequence>
+#include "define_ast_helpers.hpp"
+
+   AST_NODE(var_sequence_t, nt_var_sequence)
    {
       std::string repr() const
       {
@@ -73,8 +75,7 @@ namespace ast
       }
    };
 
-   struct arg_sequence_t
-      : base_mixin_t<nt_arg_sequence>
+   AST_NODE(arg_sequence_t, nt_arg_sequence)
    {
       std::string repr() const
       {
@@ -82,8 +83,7 @@ namespace ast
       }
    };
 
-   struct stmt_sequence_t
-      : base_mixin_t<nt_stmt_sequence>
+   AST_NODE(stmt_sequence_t, nt_stmt_sequence)
    {
       std::string repr() const
       {
@@ -91,8 +91,7 @@ namespace ast
       }
    };
 
-   struct variable_t
-      : base_mixin_t<nt_variable>
+   AST_NODE(variable_t,nt_variable)
    {
       variable_t(std::string const & name)
          : name_(name)
@@ -115,8 +114,7 @@ namespace ast
       std::string name_;
    };
 
-   struct function_call_t
-      : base_mixin_t<nt_function_call>
+   AST_NODE(function_call_t, nt_function_call)
    {
       function_call_t(base_t::ptr_t const & name)
          : name_(name)
@@ -136,9 +134,10 @@ namespace ast
       base_t::ptr_t name_;
    };
 
-   template<class T>
-   struct value_t
-      : base_mixin_t<nt_value>
+   AST_NODE_TEMP_FWD(value_t, T)
+   AST_HELPER(value_t<double>, value_nt_f<double>::value)
+   AST_HELPER(value_t<long>, value_nt_f<long>::value)
+   AST_NODE_TEMP(value_t, T, value_nt_f<T>::value)
    {
       value_t(T const & value)
          : value_(value)
@@ -161,8 +160,7 @@ namespace ast
       T value_;
    };
 
-   struct function_def_t
-      : base_mixin_t<nt_function_def>
+   AST_NODE(function_def_t, nt_function_def)
    {
       function_def_t(std::string const & type, std::string const & name)
          : name_(name)
@@ -190,8 +188,7 @@ namespace ast
       std::string type_;
    };
 
-   struct variable_def_t
-      : base_mixin_t<nt_variable_def>
+   AST_NODE(variable_def_t, nt_variable_def)
    {
       variable_def_t(std::string const & type, std::string const & name)
          : name_(name)
@@ -219,8 +216,7 @@ namespace ast
       std::string type_;
    };
 
-   struct while_stmt_t
-      : base_mixin_t<nt_while>
+   AST_NODE(while_stmt_t, nt_while)
    {
       std::string repr() const
       {
@@ -228,8 +224,7 @@ namespace ast
       }
    };
 
-   struct for_stmt_t
-      : base_mixin_t<nt_for>
+   AST_NODE(for_stmt_t, nt_for)
    {
       std::string repr() const
       {
@@ -237,8 +232,7 @@ namespace ast
       }
    };
 
-   struct return_stmt_t
-      : base_mixin_t<nt_return>
+   AST_NODE(return_stmt_t, nt_return)
    {
       std::string repr() const
       {
@@ -246,8 +240,7 @@ namespace ast
       }
    };
 
-   struct break_stmt_t
-      : base_mixin_t<nt_break>
+   AST_NODE(break_stmt_t, nt_break)
    {
       std::string repr() const
       {
@@ -255,8 +248,7 @@ namespace ast
       }
    };
 
-   struct continue_stmt_t
-      : base_mixin_t<nt_continue>
+   AST_NODE(continue_stmt_t, nt_continue)
    {
       std::string repr() const
       {
@@ -264,8 +256,7 @@ namespace ast
       }
    };
 
-   struct if_stmt_t
-      : base_mixin_t<nt_if>
+   AST_NODE(if_stmt_t, nt_if)
    {
       std::string repr() const
       {
@@ -273,8 +264,7 @@ namespace ast
       }
    };
 
-   struct binop_t
-      : base_mixin_t<nt_binop>
+   AST_NODE(binop_t, nt_binop)
    {
       enum bo_t
       {
@@ -324,4 +314,5 @@ namespace ast
       bo_t type_;
    };
 
+#include "undefine_ast_helpers.hpp"
 }
