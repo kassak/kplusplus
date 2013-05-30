@@ -6,8 +6,12 @@
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/ValueSymbolTable.h>
 
+#include "type_system.hpp"
+
 namespace
 {
+   using namespace ir;
+
    struct ast_visitor_t
    {
       ast_visitor_t(ast::base_t::ptr_t const & tree)
@@ -34,64 +38,48 @@ namespace
                                        llvm::APInt(sizeof(long)*CHAR_BIT, node->value(), true));
       }
 
-      enum type_t
-      {
-         t_float = 1,
-         t_int = 0
-      };
-
-      static type_t type_of(llvm::Value* v)
-      {
-         if(v->isFloatingPointTy())
-            return t_float;
-         else if(v->isIntegerTy())
-            return t_int;
-         error("type failed");
-      }
-
-      static type_t type_of(llvm::Value* v1, llvm::Value* v2, ast::binop_t::bo_t op)
-      {
-         type_t t1 = type_of(v1);
-         type_t t2 = type_of(v2);
-         switch(op)
-         {
-         case ast::binop_t::bo_plus:
-         case ast::binop_t::bo_minus:
-         case ast::binop_t::bo_mul:
-         case ast::binop_t::bo_div:
-            return std::max(t1, t2);
-         case ast::binop_t::bo_lt:
-         case ast::binop_t::bo_gt:
-         case ast::binop_t::bo_eq:
-         case ast::binop_t::bo_le:
-         case ast::binop_t::bo_ge:
-            return t_int:
-         default:
-            throw std::logic_error("should not be");
-         }
-      }
-
       llvm::Value* visit(const ast::binop_t * node)
       {
          //TODO: handle unary minus
          llvm::Value* v1 = value_atom(node->children[0].get());
          llvm::Value* v2 = value_atom(node->children[1].get());
 
+         type_t t1 = type_of(v1);
+         type_t t2 = type_of(v2);
+         type_t max_tp = std::max(t1, t2);
+         if(max_tp != t_int && max_tp != t_float)
+            not_appliable(node->type(), t1, t2);
+
+         llvm::Value* tv1 = ir::cast(v1, max_tp, builder_);
+         llvm::Value* tv2 = ir::cast(v2, max_tp, builder_);
+
          switch (node->type())
          {
          case ast::binop_t::bo_plus:
-            return builder_.CreateFAdd(v1, v2, "addtmp");
+            if(max_tp == t_int)
+               return builder_.CreateAdd(tv1, tv2, "addtmp");
+            else
+               return builder_.CreateFAdd(tv1, tv2, "addtmp");
          case ast::binop_t::bo_minus:
-            return builder_.CreateFSub(v1, v2, "subtmp");
+            if(max_tp == t_int)
+               return builder_.CreateSub(tv1, tv2, "subtmp");
+            else
+               return builder_.CreateFSub(tv1, tv2, "subtmp");
          case ast::binop_t::bo_mult:
-            return builder_.CreateFMul(v1, v2, "multmp");
+            if(max_tp == t_int)
+               return builder_.CreateMul(tv1, tv2, "multtmp");
+            else
+               return builder_.CreateFMul(tv1, tv2, "multtmp");
          case ast::binop_t::bo_div:
-            return builder_.CreateFDiv(v1, v2, "divtmp");
-         case '<':
-            L = Builder.CreateFCmpULT(L, R, "cmptmp");
+            if(max_tp == t_int)
+               return builder_.CreateSDiv(tv1, tv2, "divtmp");
+            else
+               return builder_.CreateFDiv(tv1, tv2, "divtmp");
+            //         case '<':
+            //            L = Builder.CreateFCmpULT(L, R, "cmptmp");
             // Convert bool 0/1 to double 0.0 or 1.0
-            return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()),
-                                        "booltmp");
+            //            return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()),
+            //                                        "booltmp");
          default:
             throw std::logic_error("should not be");
          }
@@ -114,9 +102,14 @@ namespace
          }
       }
 
+      llvm::Type* lookup_type(std::string const & name) const
+      {
+         return nullptr;
+      }
+
       llvm::Value* lookup_variable(std::string const & name) const
       {
-         llvm::Value* v = symbols_[name];
+         llvm::Value* v = symbols_.lookup(name);
          if(!v)
             error("undefined variable `" + name + "`");
          return v;
@@ -125,6 +118,35 @@ namespace
       llvm::Value* define_variable(std::string const & name)
       {
          return nullptr;
+      }
+
+      llvm::Function* visit(const ast::function_def_t * node)
+      {
+         const ast::arg_sequence_t * args = to<ast::nt_arg_sequence>(node->children[0]);
+         const ast::stmt_sequence_t * body = to<ast::nt_stmt_sequence>(node->children[1]);
+
+         std::vector<llvm::Type*> arg_types(args->children.size());
+         for(size_t i = 0; i < args->children.size(); ++i)
+            arg_types[i] = lookup_type(to<ast::nt_variable_def>(args->children[i])->type());
+         llvm::FunctionType * ftype = llvm::FunctionType::get(lookup_type(node->type()), arg_types, false);
+
+         llvm::Function *foo = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, node->name(), &module_);
+         if(foo->getName() != node->name())
+            error("redefinition of " + node->name());
+
+         {
+            size_t i = 0;
+            for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
+            {
+               ait->setName(to<ast::nt_variable_def>(args->children[i])->name());
+               //               symbols_.lookup(to<ast::nt_variable_def>(args->children[i])->name()] = ait;
+            }
+         }
+
+         llvm::BasicBlock * b = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", foo);
+         visit(body, b);
+         llvm::verifyFunction(*foo);
+         return foo;
       }
 
       template<ast::node_t N>
@@ -145,9 +167,13 @@ namespace
       {
          throw std::runtime_error("Error: " + e);
       }
+      void not_appliable(ast::binop_t::bo_t op, type_t t1, type_t t2) const
+      {
+         throw error("operator is not appliable for this argument types");
+      }
       void unexpected_node(const ast::base_t * n) const
       {
-         throw std::runtime_error("Error: unexpected node `" + n->repr() + "`");
+         throw error("unexpected node `" + n->repr() + "`");
       }
    private:
       ast::base_t::ptr_t root_;
