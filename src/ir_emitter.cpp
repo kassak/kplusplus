@@ -102,6 +102,56 @@ namespace
          }
       }
 
+      llvm::Function * current_function() const
+      {
+         return builder_.GetInsertBlock()->getParent();
+      }
+
+      llvm::Value* condition(llvm::Value* val)
+      {
+         return builder_.CreateICmpEQ(val, llvm::ConstantInt::get(llvm::getGlobalContext(), llvm::APInt(32, 0, true)), "condition");
+      }
+
+      llvm::Value* visit(const ast::for_stmt_t * node)
+      {
+         if(node->children[0])
+         {
+            ast::base_t::ptr_t vdef_or_expr = node->children[0];
+            if(vdef_or_expr->node_type() == ast::nt_var_sequence)
+               visit(to<ast::nt_var_sequence>(vdef_or_expr));
+            else
+               visit_expression(vdef_or_expr);
+         }
+         llvm::BasicBlock * loop = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop", current_function());
+         llvm::BasicBlock * after_loop = llvm::BasicBlock::Create(llvm::getGlobalContext(), "after_loop", current_function());
+
+         if(node->children[1])
+         {
+            llvm::Value * cond = cast(visit_expression(node->children[1]), t_int, builder_);
+            cond = condition(cond);
+            builder_.CreateCondBr(cond, after_loop, loop);
+         }
+         else
+            builder_.CreateBr(loop);
+         builder_.SetInsertPoint(loop);
+
+         visit(to<ast::nt_stmt_sequence>(node->children[3]));
+
+         if(node->children[2])
+         {
+            visit_expression(node->children[2]);
+         }
+         if(node->children[1])
+         {
+            llvm::Value * cond = cast(visit_expression(node->children[1]), t_int, builder_);
+            cond = condition(cond);
+            builder_.CreateCondBr(cond, after_loop, loop);
+         }
+
+         builder_.SetInsertPoint(after_loop);
+         return nullptr;
+      }
+
       llvm::Value* visit(const ast::variable_t * node)
       {
          return builder_.CreateLoad(lookup_variable(node->name()), node->name().c_str());
@@ -236,6 +286,12 @@ namespace
                break;
             case ast::nt_var_sequence:
                res = visit(to<ast::nt_var_sequence>(c));
+               break;
+            case ast::nt_stmt_sequence:
+               res = visit(to<ast::nt_stmt_sequence>(c));
+               break;
+            case ast::nt_for:
+               res = visit(to<ast::nt_for>(c));
                break;
             default:
                res = visit_expression(c);
