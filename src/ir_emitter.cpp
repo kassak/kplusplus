@@ -51,6 +51,10 @@ namespace
       {
          //TODO: handle unary minus
          llvm::Value* v1 = visit_expression(node->children[0]);
+         if(node->children.size() == 1 && node->type() == ast::binop_t::bo_minus)
+         {
+            return builder_.CreateNeg(v1);
+         }
          llvm::Value* v2 = visit_expression(node->children[1]);
 
          type_t t1 = type_of(v1);
@@ -84,6 +88,10 @@ namespace
                return builder_.CreateSDiv(tv1, tv2, "divtmp");
             else
                return builder_.CreateFDiv(tv1, tv2, "divtmp");
+         case ast::binop_t::bo_assign:
+            if(node->children[0]->node_type() != ast::nt_variable)
+               error("lvalue expected");
+            return builder_.CreateStore(tv2, lookup_variable(to<ast::nt_variable>(node->children[0])->name()));
             //         case '<':
             //            L = Builder.CreateFCmpULT(L, R, "cmptmp");
             // Convert bool 0/1 to double 0.0 or 1.0
@@ -107,6 +115,7 @@ namespace
             return llvm::Type::getInt32Ty(llvm::getGlobalContext());
          if(name == "void")
             return llvm::Type::getVoidTy(llvm::getGlobalContext());
+         error("unknown type `" + name + "`");
          return nullptr;
       }
 
@@ -119,10 +128,9 @@ namespace
          //return it->second;
       }
 
-      llvm::AllocaInst* define_variable(llvm::BasicBlock * b, std::string const & type, std::string const & name)
+      llvm::AllocaInst* define_variable(std::string const & type, std::string const & name)
       {
-         llvm::IRBuilder<> tmp(b, b->begin());
-         llvm::AllocaInst * res = tmp.CreateAlloca(lookup_type(type), 0, name.c_str());
+         llvm::AllocaInst * res = builder_.CreateAlloca(lookup_type(type), 0, name.c_str());
          symbols_[name] = res;
          return res;
       }
@@ -159,7 +167,7 @@ namespace
             size_t i = 0;
             for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
             {
-               llvm::AllocaInst * a = define_variable(&foo->getEntryBlock(),
+               llvm::AllocaInst * a = define_variable(
                   to<ast::nt_variable_def>(args->children[i])->type(),
                   to<ast::nt_variable_def>(args->children[i])->name()
                );
@@ -198,6 +206,21 @@ namespace
          return builder_.CreateCall(foo, vargs, "foocall");
       }
 
+      llvm::AllocaInst* visit(const ast::variable_def_t * node)
+      {
+         llvm::AllocaInst * a = define_variable(node->type(), node->name());
+         if(!node->children.empty())
+            builder_.CreateStore(visit_expression(node->children[0]), a);
+         return a;
+      }
+
+      llvm::Value* visit(const ast::var_sequence_t * node)
+      {
+         for(ast::base_t::ptr_t const & c : node->children)
+            visit(to<ast::nt_variable_def>(c));
+         return nullptr;
+      }
+
       llvm::Value* visit(const ast::stmt_sequence_t * node, bool foo_body = false)
       {
          llvm::Value* res = nullptr;
@@ -211,8 +234,8 @@ namespace
             case ast::nt_return:
                res = visit(to<ast::nt_return>(c));
                break;
-            case ast::nt_variable:
-               res = visit(to<ast::nt_variable>(c));
+            case ast::nt_var_sequence:
+               res = visit(to<ast::nt_var_sequence>(c));
                break;
             default:
                res = visit_expression(c);
