@@ -8,6 +8,7 @@
 #include <llvm/Support/raw_os_ostream.h>
 
 #include "type_system.hpp"
+#include "util.hpp"
 
 #include <iostream>
 
@@ -18,13 +19,14 @@ namespace
    struct ast_visitor_t
    {
       typedef
-         std::unordered_map<std::string, llvm::Value*>
+         std::unordered_map<std::string, llvm::AllocaInst*>
          symbols_map_t;
 
       ast_visitor_t(ast::base_t::ptr_t const & tree)
          : root_(tree)
          , module_("kassak's c++ compiler'", llvm::getGlobalContext())
          , builder_(llvm::getGlobalContext())
+         , current_function_(nullptr)
       {
       }
 
@@ -92,6 +94,11 @@ namespace
          }
       }
 
+      llvm::Value* visit(const ast::variable_t * node)
+      {
+         return builder_.CreateLoad(lookup_variable(node->name()), node->name().c_str());
+      }
+
       llvm::Type* lookup_type(std::string const & name) const
       {
          if(name == "double")
@@ -103,17 +110,21 @@ namespace
          return nullptr;
       }
 
-      llvm::Value* lookup_variable(std::string const & name) const
+      llvm::AllocaInst* lookup_variable(std::string const & name) const
       {
          symbols_map_t::const_iterator it = symbols_.find(name);
          if(it == symbols_.end())
             error("undefined variable `" + name + "`");
          return it->second;
+         //return it->second;
       }
 
-      llvm::Value* define_variable(std::string const & name)
+      llvm::AllocaInst* define_variable(llvm::BasicBlock * b, std::string const & type, std::string const & name)
       {
-         return nullptr;
+         llvm::IRBuilder<> tmp(b, b->begin());
+         llvm::AllocaInst * res = tmp.CreateAlloca(lookup_type(type), 0, name.c_str());
+         symbols_[name] = res;
+         return res;
       }
 
       llvm::Function* visit(const ast::function_def_t * node)
@@ -130,37 +141,89 @@ namespace
          if(foo->getName() != node->name())
             error("redefinition of " + node->name());
 
+         llvm::BasicBlock * b = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", foo);
          {
             size_t i = 0;
             for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
             {
                ait->setName(to<ast::nt_variable_def>(args->children[i])->name());
-               symbols_[to<ast::nt_variable_def>(args->children[i])->name()] = ait;
             }
          }
 
-         llvm::BasicBlock * b = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", foo);
+         current_function_ = foo;
+         scope_exit([&current_function_](){current_function_ = nullptr;});
+
          builder_.SetInsertPoint(b);
-         visit(body);
+
+         {
+            size_t i = 0;
+            for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
+            {
+               llvm::AllocaInst * a = define_variable(&foo->getEntryBlock(),
+                  to<ast::nt_variable_def>(args->children[i])->type(),
+                  to<ast::nt_variable_def>(args->children[i])->name()
+               );
+               builder_.CreateStore(ait, a);
+            }
+         }
+
+         visit(body, true);
          //         llvm::verifyFunction(*foo);
          return foo;
       }
 
-      llvm::Value* visit(const ast::stmt_sequence_t * node/*, llvm::BasicBlock * b*/)
+      llvm::Value* visit(const ast::function_call_t * node)
       {
+         std::string name = to<ast::nt_variable>(node->name())->name();
+         llvm::Function * foo = module_.getFunction(name.c_str());
+         if(!foo)
+            error("undefined function `" + name + "`");
+         const ast::base_t * args = node;
+         if(args->children.size() != foo->arg_size())
+         {
+            std::stringstream ss;
+            ss
+                   << "wrong number of arguments for `"
+                   << name
+                   << "`, expected "
+                   << foo->arg_size()
+                   << " got "
+                   << args->children.size()
+               ;
+            error(ss.str());
+         }
+         std::vector<llvm::Value*> vargs(args->children.size());
+         for(size_t i = 0; i < vargs.size(); ++i)
+            vargs[i] = cast(visit_expression(args->children[i]), to_type(foo->getFunctionType()->getParamType(i)), builder_);
+         return builder_.CreateCall(foo, vargs, "foocall");
+      }
+
+      llvm::Value* visit(const ast::stmt_sequence_t * node, bool foo_body = false)
+      {
+         llvm::Value* res = nullptr;
          for(ast::base_t::ptr_t const & c : node->children)
          {
             switch(c->node_type())
             {
             case ast::nt_function_def:
-               return visit(to<ast::nt_function_def>(c));
+               res = visit(to<ast::nt_function_def>(c));
+               break;
             case ast::nt_return:
-               return visit(to<ast::nt_return>(c));
+               res = visit(to<ast::nt_return>(c));
+               break;
+            case ast::nt_variable:
+               res = visit(to<ast::nt_variable>(c));
+               break;
             default:
-               unexpected_node(c);
+               res = visit_expression(c);
+               break;
             }
          }
-         return nullptr;
+         if(foo_body && current_function_->getReturnType()->isVoidTy())
+         {
+            builder_.CreateRetVoid();
+         }
+         return res;
       }
 
       llvm::Value* visit_expression(ast::base_t::ptr_t const & node)
@@ -173,6 +236,10 @@ namespace
             return visit(to<ast::nt_float_value>(node));
          case ast::nt_binop:
             return visit(to<ast::nt_binop>(node));
+         case ast::nt_variable:
+            return visit(to<ast::nt_variable>(node));
+         case ast::nt_function_call:
+            return visit(to<ast::nt_function_call>(node));
          default:
             unexpected_node(node);
          }
@@ -181,10 +248,19 @@ namespace
 
       llvm::ReturnInst * visit(const ast::return_stmt_t * node)
       {
+         llvm::Value * ret_val = nullptr;
+         type_t ret_tp = t_void;
+         if(!node->children.empty())
+         {
+            ret_val = visit_expression(node->children[0]);
+            ret_tp = type_of(ret_val);
+         }
+         type_t foo_tp = to_type(current_function_->getReturnType());
+         check_castable(ret_tp, foo_tp);
          if(node->children.empty())
             return builder_.CreateRetVoid();
-         llvm::Value * ret_val = visit_expression(node->children[0]);
-         return builder_.CreateRet(ret_val);
+         else
+            return builder_.CreateRet(cast(ret_val, foo_tp, builder_));
       }
 
       template<ast::node_t N>
@@ -223,6 +299,7 @@ namespace
       llvm::Module module_;
       llvm::IRBuilder<> builder_;
       symbols_map_t symbols_;
+      llvm::Function * current_function_;
       //      llvm::ValueSymbolTable symbols_;
    };
 }

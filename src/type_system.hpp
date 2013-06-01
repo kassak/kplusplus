@@ -9,15 +9,20 @@ namespace ir
       t_int = 0
    };
 
-   type_t type_of(llvm::Value* v)
+   type_t to_type(llvm::Type* t)
    {
-      if(v->getType()->isFloatingPointTy())
+      if(t->isFloatingPointTy())
          return t_float;
-      else if(v->getType()->isIntegerTy())
+      else if(t->isIntegerTy())
          return t_int;
-      else if(v->getType()->isVoidTy())
+      else if(t->isVoidTy())
          return t_void;
       return t_user;
+   }
+
+   type_t type_of(llvm::Value* v)
+   {
+      return to_type(v->getType());
    }
 
    type_t type_of(llvm::Value* v1, llvm::Value* v2, ast::binop_t::bo_t op)
@@ -45,6 +50,17 @@ namespace ir
    void invalid_conversion(type_t from, type_t to)
    {
       throw std::runtime_error("invalid type conversion");
+   }
+
+   bool is_castable(type_t from, type_t to)
+   {
+      return from == to || ((from == t_int || from == t_float) && (to == t_int || to == t_float));
+   }
+
+   void check_castable(type_t from, type_t to)
+   {
+      if(!is_castable(from, to))
+         invalid_conversion(from, to);
    }
 
    llvm::Value * cast(llvm::Value * val, type_t to, llvm::IRBuilder<> & builder)

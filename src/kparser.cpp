@@ -567,7 +567,8 @@ namespace ast
       DEF_PARSER(global_statement_list_, lex)
       {
          base_t::ptr_t seq = std::make_shared<stmt_sequence_t>();
-         while(lex.next())
+         lex.next();
+         while(lex.token())
          {
             try
             {
