@@ -5,8 +5,11 @@
 #include <llvm/Module.h>
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/ValueSymbolTable.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 #include "type_system.hpp"
+
+#include <iostream>
 
 namespace
 {
@@ -14,6 +17,10 @@ namespace
 
    struct ast_visitor_t
    {
+      typedef
+         std::unordered_map<std::string, llvm::Value*>
+         symbols_map_t;
+
       ast_visitor_t(ast::base_t::ptr_t const & tree)
          : root_(tree)
          , module_("kassak's c++ compiler'", llvm::getGlobalContext())
@@ -23,7 +30,7 @@ namespace
 
       void process()
       {
-         visit(to<ast::nt_float_value>(root_));
+         visit(to<ast::nt_stmt_sequence>(root_));
       }
 
       llvm::Value* visit(const ast::value_t<double> * node)
@@ -35,14 +42,14 @@ namespace
       llvm::Value* visit(const ast::value_t<long> * node)
       {
          return llvm::ConstantInt::get(llvm::getGlobalContext(),
-                                       llvm::APInt(sizeof(long)*CHAR_BIT, node->value(), true));
+                                       llvm::APInt(32, node->value(), true));
       }
 
       llvm::Value* visit(const ast::binop_t * node)
       {
          //TODO: handle unary minus
-         llvm::Value* v1 = value_atom(node->children[0].get());
-         llvm::Value* v2 = value_atom(node->children[1].get());
+         llvm::Value* v1 = visit_expression(node->children[0]);
+         llvm::Value* v2 = visit_expression(node->children[1]);
 
          type_t t1 = type_of(v1);
          type_t t2 = type_of(v2);
@@ -85,34 +92,23 @@ namespace
          }
       }
 
-      llvm::Value* value_atom(const ast::base_t * node)
-      {
-         switch(node->node_type())
-         {
-         case ast::nt_float_value:
-            return visit(to<ast::nt_float_value>(node));
-         case ast::nt_int_value:
-            return visit(to<ast::nt_int_value>(node));
-            //         case ast::nt_variable:
-            // return visit(to<ast::nt_variable>(node));
-            //case ast::nt_function_call:
-            //return visit(to<ast::nt_function_call>(node));
-         default:
-            unexpected_node(node);
-         }
-      }
-
       llvm::Type* lookup_type(std::string const & name) const
       {
+         if(name == "double")
+            return llvm::Type::getDoubleTy(llvm::getGlobalContext());
+         if(name == "int")
+            return llvm::Type::getInt32Ty(llvm::getGlobalContext());
+         if(name == "void")
+            return llvm::Type::getVoidTy(llvm::getGlobalContext());
          return nullptr;
       }
 
       llvm::Value* lookup_variable(std::string const & name) const
       {
-         llvm::Value* v = symbols_.lookup(name);
-         if(!v)
+         symbols_map_t::const_iterator it = symbols_.find(name);
+         if(it == symbols_.end())
             error("undefined variable `" + name + "`");
-         return v;
+         return it->second;
       }
 
       llvm::Value* define_variable(std::string const & name)
@@ -139,14 +135,56 @@ namespace
             for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
             {
                ait->setName(to<ast::nt_variable_def>(args->children[i])->name());
-               //               symbols_.lookup(to<ast::nt_variable_def>(args->children[i])->name()] = ait;
+               symbols_[to<ast::nt_variable_def>(args->children[i])->name()] = ait;
             }
          }
 
          llvm::BasicBlock * b = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", foo);
-         visit(body, b);
-         llvm::verifyFunction(*foo);
+         builder_.SetInsertPoint(b);
+         visit(body);
+         //         llvm::verifyFunction(*foo);
          return foo;
+      }
+
+      llvm::Value* visit(const ast::stmt_sequence_t * node/*, llvm::BasicBlock * b*/)
+      {
+         for(ast::base_t::ptr_t const & c : node->children)
+         {
+            switch(c->node_type())
+            {
+            case ast::nt_function_def:
+               return visit(to<ast::nt_function_def>(c));
+            case ast::nt_return:
+               return visit(to<ast::nt_return>(c));
+            default:
+               unexpected_node(c);
+            }
+         }
+         return nullptr;
+      }
+
+      llvm::Value* visit_expression(ast::base_t::ptr_t const & node)
+      {
+         switch(node->node_type())
+         {
+         case ast::nt_int_value:
+            return visit(to<ast::nt_int_value>(node));
+         case ast::nt_float_value:
+            return visit(to<ast::nt_float_value>(node));
+         case ast::nt_binop:
+            return visit(to<ast::nt_binop>(node));
+         default:
+            unexpected_node(node);
+         }
+         return nullptr;
+      }
+
+      llvm::ReturnInst * visit(const ast::return_stmt_t * node)
+      {
+         if(node->children.empty())
+            return builder_.CreateRetVoid();
+         llvm::Value * ret_val = visit_expression(node->children[0]);
+         return builder_.CreateRet(ret_val);
       }
 
       template<ast::node_t N>
@@ -169,17 +207,23 @@ namespace
       }
       void not_appliable(ast::binop_t::bo_t op, type_t t1, type_t t2) const
       {
-         throw error("operator is not appliable for this argument types");
+         error("operator is not appliable for this argument types");
       }
-      void unexpected_node(const ast::base_t * n) const
+      void unexpected_node(ast::base_t::ptr_t const & n) const
       {
-         throw error("unexpected node `" + n->repr() + "`");
+         error("unexpected node `" + n->repr() + "`");
+      }
+
+      void write_out(llvm::raw_ostream & os)
+      {
+         os << module_;
       }
    private:
       ast::base_t::ptr_t root_;
       llvm::Module module_;
       llvm::IRBuilder<> builder_;
-      llvm::ValueSymbolTable symbols_;
+      symbols_map_t symbols_;
+      //      llvm::ValueSymbolTable symbols_;
    };
 }
 
@@ -189,5 +233,7 @@ namespace ir
    {
       ast_visitor_t processor(tree);
       processor.process();
+      llvm::raw_os_ostream os(std::cout);
+      processor.write_out(os);
    }
 }

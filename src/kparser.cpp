@@ -374,7 +374,8 @@ namespace ast
          check_first<return_stmt_>(lex);
          base_t::ptr_t stmt = std::make_shared<return_stmt_t>();
          lex.next(); // consume return
-         stmt->children.push_back(parse<expression_>(lex));
+         if(lex.token() != TOK_SEMICOLON)
+            stmt->children.push_back(parse<expression_>(lex));
          check_expected<return_stmt_>(lex, TOK_SEMICOLON);
          lex.next();
          return stmt;

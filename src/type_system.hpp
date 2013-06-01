@@ -75,5 +75,6 @@ namespace ir
       default:
          invalid_conversion(from, to);
       }
+      return nullptr;
    }
 }
