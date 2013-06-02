@@ -10,6 +10,14 @@ int main(int argc, char **argv)
    if(cfg.dump_ast)
       ast::ast2dot(std::cout, p);
    if(cfg.emit_ir)
-      ir::emit(p);
+      try
+      {
+          ir::emit(p);
+      }
+      catch(std::exception const & e)
+      {
+         std::cerr << e.what() << std::endl;
+         std::exit(1);
+      }
    //   std::cout << "test" << std::endl;
 }

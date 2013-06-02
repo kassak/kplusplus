@@ -112,7 +112,57 @@ namespace
          return builder_.CreateICmpEQ(val, llvm::ConstantInt::get(llvm::getGlobalContext(), llvm::APInt(32, 0, true)), "condition");
       }
 
-      llvm::Value* visit(const ast::for_stmt_t * node)
+      llvm::Value* visit(const ast::if_stmt_t * node, bool last_inst)
+      {
+         llvm::BasicBlock * then_br = llvm::BasicBlock::Create(llvm::getGlobalContext(), "then", current_function());
+         llvm::BasicBlock * else_br = llvm::BasicBlock::Create(llvm::getGlobalContext(), "else", current_function());
+         llvm::BasicBlock * after_if_br;
+         if(!last_inst)
+            after_if_br = llvm::BasicBlock::Create(llvm::getGlobalContext(), "after_if", current_function());
+
+         llvm::Value * cond = cast(visit_expression(node->children[0]), t_int, builder_);
+         cond = condition(cond);
+         builder_.CreateCondBr(cond, else_br, then_br);
+
+         builder_.SetInsertPoint(then_br);
+         visit(to<ast::nt_stmt_sequence>(node->children[1]));
+         if(!last_inst)
+            builder_.CreateBr(after_if_br);
+
+         if(node->children[2])
+         {
+            builder_.SetInsertPoint(else_br);
+            visit(to<ast::nt_stmt_sequence>(node->children[2]));
+            if(!last_inst)
+               builder_.CreateBr(after_if_br);
+         }
+
+         if(!last_inst)
+            builder_.SetInsertPoint(after_if_br);
+         return nullptr;
+      }
+
+      llvm::Value* visit(const ast::while_stmt_t * node, bool last_inst)
+      {
+         llvm::BasicBlock * loop = llvm::BasicBlock::Create(llvm::getGlobalContext(), "loop", current_function());
+         llvm::BasicBlock * after_loop = llvm::BasicBlock::Create(llvm::getGlobalContext(), "after_loop", current_function());
+
+         llvm::Value * cond = cast(visit_expression(node->children[0]), t_int, builder_);
+         cond = condition(cond);
+         builder_.CreateCondBr(cond, after_loop, loop);
+
+         builder_.SetInsertPoint(loop);
+         visit(to<ast::nt_stmt_sequence>(node->children[1]));
+
+         cond = cast(visit_expression(node->children[0]), t_int, builder_);
+         cond = condition(cond);
+         builder_.CreateCondBr(cond, after_loop, loop);
+
+         builder_.SetInsertPoint(after_loop);
+         return nullptr;
+      }
+
+      llvm::Value* visit(const ast::for_stmt_t * node, bool last_inst)
       {
          if(node->children[0])
          {
@@ -147,6 +197,8 @@ namespace
             cond = condition(cond);
             builder_.CreateCondBr(cond, after_loop, loop);
          }
+         else
+            builder_.CreateBr(loop);
 
          builder_.SetInsertPoint(after_loop);
          return nullptr;
@@ -274,8 +326,12 @@ namespace
       llvm::Value* visit(const ast::stmt_sequence_t * node, bool foo_body = false)
       {
          llvm::Value* res = nullptr;
-         for(ast::base_t::ptr_t const & c : node->children)
+         for(size_t i = 0; i < node->children.size(); ++i)
          {
+            ast::base_t::ptr_t const & c = node->children[i];
+            bool last_inst = current_function_
+               && !current_function()->getReturnType()->isVoidTy()
+               && i == node->children.size() - 1;
             switch(c->node_type())
             {
             case ast::nt_function_def:
@@ -291,7 +347,13 @@ namespace
                res = visit(to<ast::nt_stmt_sequence>(c));
                break;
             case ast::nt_for:
-               res = visit(to<ast::nt_for>(c));
+               res = visit(to<ast::nt_for>(c), last_inst);
+               break;
+            case ast::nt_while:
+               res = visit(to<ast::nt_while>(c), last_inst);
+               break;
+            case ast::nt_if:
+               res = visit(to<ast::nt_if>(c), last_inst);
                break;
             default:
                res = visit_expression(c);
