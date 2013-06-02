@@ -63,6 +63,7 @@ namespace ast
             base_t::ptr_t svar = std::make_shared<variable_t>(lex.text());
             last->children.push_back(svar);
             last = svar;
+            lex.next(); //consume id
          }
          return var;
       }
@@ -578,6 +579,7 @@ namespace ast
             catch(unexpected_token_base & e)
             {
                std::cerr << "Error: " << e.what() << std::endl;
+               lex.next();
             }
          }
          return seq;
