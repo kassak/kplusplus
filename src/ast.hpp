@@ -28,6 +28,7 @@ namespace ast
 
       nt_variable_def,
       nt_function_def,
+      nt_class_def,
 
       nt_end
    };
@@ -214,6 +215,26 @@ namespace ast
    private:
       std::string name_;
       std::string type_;
+   };
+
+   AST_NODE(class_def_t, nt_class_def)
+   {
+      class_def_t(std::string const & name)
+         : name_(name)
+      {
+      }
+
+      std::string const & name() const
+      {
+         return name_;
+      }
+
+      std::string repr() const
+      {
+         return "class " + name();
+      }
+   private:
+      std::string name_;
    };
 
    AST_NODE(while_stmt_t, nt_while)

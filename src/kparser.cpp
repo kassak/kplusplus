@@ -521,9 +521,26 @@ namespace ast
          return foo;
       }
 
-      DEF_PARSER(class_definition_, lex)
+      DEF_PARSER_F(class_definition_, lex, ({TOK_CLASS}))
       {
-         return nullptr;
+         check_first<class_definition_>(lex);
+         lex.next();
+         check_expected<class_definition_>(lex, TOK_ID);
+         base_t::ptr_t cdef = std::make_shared<class_def_t>(lex.text());
+         lex.next();
+         check_expected<class_definition_>(lex, TOK_BLOCK_OPEN);
+         lex.next();
+
+         while(lex.token() != TOK_BLOCK_CLOSE)
+         {
+            cdef->children.push_back(parse<global_statement_>(lex));
+         }
+
+         check_expected<class_definition_>(lex, TOK_BLOCK_CLOSE);
+         lex.next();
+         check_expected<class_definition_>(lex, TOK_SEMICOLON);
+         lex.next();
+         return cdef;
       }
 
       DEF_PARSER_F(global_statement_, lex, ({TOK_ID, TOK_CLASS}))
@@ -535,31 +552,16 @@ namespace ast
             return parse<class_definition_>(lex);
          case TOK_ID:
             {
-               /*
-               bool is_function;
-               {
-                  track_guard_t _(lex);
-                  lex.next();
-                  check_expected<global_statement_>(lex, TOK_ID);
-                  lex.next();
-                  check_expected<global_statement_>(lex, {TOK_BRACE_OPEN,
-                           TOK_ASSIGNMENT, TOK_COMMA, TOK_SEMICOLON});
-                  lex.next();
-                  if(lex.token() == TOK_BRACE_CLOSE)
-                     is_function = true;
-                  else if(lex.token() == TOK_ID)
-                  {
-                     lex.next();
-                     is_function = (lex.token() == TOK_ID);
-                  }
-                  else
-                     is_function = false;
-               }*/
                if(lookahead(lex, {TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_BRACE_CLOSE})
                   || lookahead(lex, {TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_ID, TOK_ID}))
                   return parse<function_definition_>(lex);
                else
-                  return parse<variable_definition_>(lex);
+               {
+                  base_t::ptr_t tmp = parse<variable_definition_>(lex);
+                  check_expected<global_statement_>(lex, TOK_SEMICOLON);
+                  lex.next();
+                  return tmp;
+               }
             }
          }
          throw std::logic_error("should not be");

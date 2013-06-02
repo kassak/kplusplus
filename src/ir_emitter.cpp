@@ -16,11 +16,20 @@ namespace
 {
    using namespace ir;
 
+   struct named_struct_t
+   {
+      llvm::StructType & type;
+      std::vector<std::string> strings;
+   };
+
    struct ast_visitor_t
    {
       typedef
          std::unordered_map<std::string, llvm::AllocaInst*>
          symbols_map_t;
+      typedef
+         std::unordered_map<std::string, named_struct_t>
+         structs_map_t;
 
       ast_visitor_t(ast::base_t::ptr_t const & tree)
          : root_(tree)
@@ -441,6 +450,7 @@ namespace
       llvm::IRBuilder<> builder_;
       symbols_map_t symbols_;
       llvm::Function * current_function_;
+      structs_map_t structs_;
       //      llvm::ValueSymbolTable symbols_;
    };
 }
