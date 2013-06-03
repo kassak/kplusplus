@@ -3,7 +3,8 @@ namespace ir
 {
    enum type_t
    {
-      t_user = 3,
+      t_other = 4,
+      t_struct = 3,
       t_void = 2,
       t_float = 1,
       t_int = 0
@@ -17,7 +18,9 @@ namespace ir
          return t_int;
       else if(t->isVoidTy())
          return t_void;
-      return t_user;
+      else if(t->isStructTy())
+         return t_struct;
+      return t_other;
    }
 
    type_t type_of(llvm::Value* v)

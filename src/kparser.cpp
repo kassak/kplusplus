@@ -12,6 +12,7 @@ namespace ast
       struct program_;
       struct global_statement_list_;
       struct global_statement_;
+      struct class_statement_;
       struct class_definition_;
       struct function_definition_;
       struct variable_definition_;
@@ -526,14 +527,23 @@ namespace ast
          check_first<class_definition_>(lex);
          lex.next();
          check_expected<class_definition_>(lex, TOK_ID);
-         base_t::ptr_t cdef = std::make_shared<class_def_t>(lex.text());
+         std::string name = lex.text();
          lex.next();
          check_expected<class_definition_>(lex, TOK_BLOCK_OPEN);
          lex.next();
 
+         base_t::ptr_t cdef = std::make_shared<class_def_t>(name);
          while(lex.token() != TOK_BLOCK_CLOSE)
          {
             cdef->children.push_back(parse<global_statement_>(lex));
+            if(cdef->children.back()->node_type() == nt_function_def)
+            {
+               base_t::ptr_t const & as = cdef->children.back()->children[0];
+               as->children.insert(
+                   as->children.begin(),
+                   std::make_shared<variable_def_t>(name, "this")
+               );
+            }
          }
 
          check_expected<class_definition_>(lex, TOK_BLOCK_CLOSE);
@@ -559,6 +569,28 @@ namespace ast
                {
                   base_t::ptr_t tmp = parse<variable_definition_>(lex);
                   check_expected<global_statement_>(lex, TOK_SEMICOLON);
+                  lex.next();
+                  return tmp;
+               }
+            }
+         }
+         throw std::logic_error("should not be");
+      }
+
+      DEF_PARSER_F(class_statement_, lex, ({TOK_ID, TOK_CLASS}))
+      {
+         check_first<class_statement_>(lex);
+         switch(lex.token())
+         {
+         case TOK_ID:
+            {
+               if(lookahead(lex, {TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_BRACE_CLOSE})
+                  || lookahead(lex, {TOK_ID, TOK_ID, TOK_BRACE_OPEN, TOK_ID, TOK_ID}))
+                  return parse<function_definition_>(lex);
+               else
+               {
+                  base_t::ptr_t tmp = parse<variable_definition_>(lex);
+                  check_expected<class_statement_>(lex, TOK_SEMICOLON);
                   lex.next();
                   return tmp;
                }

@@ -18,8 +18,8 @@ namespace
 
    struct named_struct_t
    {
-      llvm::StructType & type;
-      std::vector<std::string> strings;
+      llvm::StructType * type;
+      std::vector<std::string> field_names;
    };
 
    struct ast_visitor_t
@@ -54,6 +54,32 @@ namespace
       {
          return llvm::ConstantInt::get(llvm::getGlobalContext(),
                                        llvm::APInt(32, node->value(), true));
+      }
+
+      llvm::Value* visit(const ast::class_def_t * node)
+      {
+         named_struct_t & strt = structs_.insert(std::make_pair(node->name(), named_struct_t())).first->second;
+         strt.type = llvm::StructType::create(llvm::getGlobalContext(), node->name());
+         std::vector<llvm::Type*> tps;
+         for(ast::base_t::ptr_t const & c : node->children)
+            if(c->node_type() == ast::nt_var_sequence)
+            {
+               for(ast::base_t::ptr_t const & v : c->children)
+               {
+                  const ast::variable_def_t * vd = to<ast::nt_variable_def>(v);
+                  tps.push_back(lookup_type(vd->type()));
+                  strt.field_names.push_back(vd->name());
+               }
+            }
+         strt.type->setBody(tps);
+
+         for(ast::base_t::ptr_t const & c : node->children)
+            if(c->node_type() == ast::nt_function_def)
+            {
+               visit(to<ast::nt_function_def>(c));
+            }
+
+         return nullptr;
       }
 
       llvm::Value* visit(const ast::binop_t * node)
@@ -100,7 +126,8 @@ namespace
          case ast::binop_t::bo_assign:
             if(node->children[0]->node_type() != ast::nt_variable)
                error("lvalue expected");
-            return builder_.CreateStore(tv2, lookup_variable(to<ast::nt_variable>(node->children[0])->name()));
+            return assign(to<ast::nt_variable>(node->children[0]), tv2);
+            //return builder_.CreateStore(tv2, lookup_variable(to<ast::nt_variable>(node->children[0])->name()));
             //         case '<':
             //            L = Builder.CreateFCmpULT(L, R, "cmptmp");
             // Convert bool 0/1 to double 0.0 or 1.0
@@ -213,9 +240,56 @@ namespace
          return nullptr;
       }
 
-      llvm::Value* visit(const ast::variable_t * node)
+      named_struct_t const & lookup_struct(std::string const & name) const
       {
-         return builder_.CreateLoad(lookup_variable(node->name()), node->name().c_str());
+         structs_map_t::const_iterator it = structs_.find(name);
+         if(it == structs_.end())
+            error("no such struct `" + name + "`");
+         return it->second;
+      }
+
+      size_t field_idx(named_struct_t const & strt, std::string const & fname)
+      {
+         std::vector<std::string>::const_iterator it2 = std::find(
+             strt.field_names.begin(),
+             strt.field_names.end(), fname);
+         if(it2 == strt.field_names.end())
+            error("unknown field `" + fname + "`");
+         return it2 - strt.field_names.begin();
+      }
+
+      llvm::Value* assign(const ast::variable_t * node, llvm::Value* val)
+      {
+         if(node->children.empty())
+            return builder_.CreateStore(val, lookup_variable(node->name()));
+         llvm::AllocaInst* v = lookup_variable(node->name());
+         //    llvm::Value* v = builder_.CreateLoad(lookup_variable(node->name()), "var");
+         type_t tp = to_type(v->getType()->getPointerElementType());
+         if(tp != t_struct)
+            error("should be struct `" + node->name() + "`");
+         const ast::variable_t * fld = to<ast::nt_variable>(node->children[0]);
+         //         if(fld->children.size())
+         //            error("struct required");
+         size_t idx = field_idx(lookup_struct(v->getType()->getPointerElementType()->getStructName()), fld->name());
+         //         return builder_.CreateInsertValue(v, val, idx, "fld");
+         llvm::Value* fldv = builder_.CreateStructGEP(v, idx);
+         return builder_.CreateStore(val, fldv);
+      }
+
+      llvm::Value* visit(const ast::variable_t * node, const ast::variable_t * node_end = nullptr)
+      {
+         llvm::AllocaInst* a = lookup_variable(node->name());
+         if(node->children.empty() || node->children[0].get() == node_end)
+            return builder_.CreateLoad(a, "var");
+         type_t tp = to_type(a->getType()->getPointerElementType());
+         if(tp != t_struct)
+            error("should be struct `" + node->name() + "`");
+         const ast::variable_t * fld = to<ast::nt_variable>(node->children[0]);
+         //         if(fld->children.size())
+         //            error("struct required");
+         size_t idx = field_idx(lookup_struct(a->getType()->getPointerElementType()->getStructName()), fld->name());
+         llvm::Value* fldv = builder_.CreateStructGEP(a, idx);
+         return builder_.CreateLoad(fldv, "var");
       }
 
       llvm::Type* lookup_type(std::string const & name) const
@@ -226,6 +300,9 @@ namespace
             return llvm::Type::getInt32Ty(llvm::getGlobalContext());
          if(name == "void")
             return llvm::Type::getVoidTy(llvm::getGlobalContext());
+         structs_map_t::const_iterator it = structs_.find(name);
+         if(it != structs_.end())
+            return it->second.type;
          error("unknown type `" + name + "`");
          return nullptr;
       }
@@ -293,15 +370,21 @@ namespace
 
       llvm::Value* visit(const ast::function_call_t * node)
       {
-         std::string name = to<ast::nt_variable>(node->name())->name();
+         const ast::variable_t * name_node = to<ast::nt_variable>(node->name());
+         const ast::variable_t * lowest = name_node;
+         while(!lowest->children.empty())
+            lowest = to<ast::nt_variable>(lowest->children[0]);
+         bool class_method = (lowest != name_node);
+         std::string name = lowest->name();
          llvm::Function * foo = module_.getFunction(name.c_str());
          if(!foo)
             error("undefined function `" + name + "`");
          const ast::base_t * args = node;
-         if(args->children.size() != foo->arg_size())
+         if((!class_method && args->children.size() != foo->arg_size())
+             || (class_method && args->children.size()+1 != foo->arg_size()))
          {
             std::stringstream ss;
-            ss
+            ss     << class_method << "|"
                    << "wrong number of arguments for `"
                    << name
                    << "`, expected "
@@ -311,9 +394,15 @@ namespace
                ;
             error(ss.str());
          }
-         std::vector<llvm::Value*> vargs(args->children.size());
-         for(size_t i = 0; i < vargs.size(); ++i)
-            vargs[i] = cast(visit_expression(args->children[i]), to_type(foo->getFunctionType()->getParamType(i)), builder_);
+         std::vector<llvm::Value*> vargs(foo->arg_size());
+         size_t skew = 0;
+         if(class_method)
+         {
+            vargs[0] = visit(name_node, lowest);
+            skew = 1;
+         }
+         for(size_t i = 0; i < args->children.size(); ++i)
+            vargs[i + skew] = cast(visit_expression(args->children[i]), to_type(foo->getFunctionType()->getParamType(i+skew)), builder_);
          return builder_.CreateCall(foo, vargs, "foocall");
       }
 
@@ -343,6 +432,9 @@ namespace
                && i == node->children.size() - 1;
             switch(c->node_type())
             {
+            case ast::nt_class_def:
+               res = visit(to<ast::nt_class_def>(c));
+               break;
             case ast::nt_function_def:
                res = visit(to<ast::nt_function_def>(c));
                break;
