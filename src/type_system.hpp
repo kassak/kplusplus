@@ -10,6 +10,19 @@ namespace ir
       t_int = 0
    };
 
+   std::string type2str(type_t tp)
+   {
+      switch(tp)
+      {
+      case t_int:    return "int";
+      case t_float:  return "float";
+      case t_void:   return "void";
+      case t_struct: return "struct";
+      case t_other:  return "other";
+      default:       return "--";
+      }
+   }
+
    type_t to_type(llvm::Type* t)
    {
       if(t->isFloatingPointTy())
@@ -58,6 +71,16 @@ namespace ir
    bool is_castable(type_t from, type_t to)
    {
       return from == to || ((from == t_int || from == t_float) && (to == t_int || to == t_float));
+   }
+
+   bool is_arithmetic_possible(type_t t1, type_t t2)
+   {
+      return t1 <= t_float && t2 <= t_float;
+   }
+
+   bool is_assignable(type_t t1, type_t t2)
+   {
+      return t1 == t2 || is_arithmetic_possible(t1, t2);
    }
 
    void check_castable(type_t from, type_t to)

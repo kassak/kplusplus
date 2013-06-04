@@ -25,7 +25,7 @@ namespace
    struct ast_visitor_t
    {
       typedef
-         std::unordered_map<std::string, llvm::AllocaInst*>
+         std::unordered_map<std::string, llvm::Value*>
          symbols_map_t;
       typedef
          std::unordered_map<std::string, named_struct_t>
@@ -95,7 +95,7 @@ namespace
          type_t t1 = type_of(v1);
          type_t t2 = type_of(v2);
          type_t max_tp = std::max(t1, t2);
-         if(max_tp != t_int && max_tp != t_float)
+         if(!(is_arithmetic_possible(t1, t2) || (node->type() == ast::binop_t::bo_assign && is_assignable(t1, t2))))
             not_appliable(node->type(), t1, t2);
 
          llvm::Value* tv1 = ir::cast(v1, max_tp, builder_);
@@ -293,18 +293,30 @@ namespace
             if(tp != t_struct)
                error("should be struct `" + begin->name() + "`");
             size_t idx = field_idx(lookup_struct(parent->getType()->getPointerElementType()->getStructName()), begin->name());
-            parent = builder_.CreateStructGEP(parent, idx);
+            parent = builder_.CreateStructGEP(parent, idx, "fld");
          }
          if(begin->children.empty() || begin->children[0].get() == end)
             return parent;
          return lookup_variable(to<ast::nt_variable>(begin->children[0]), end, parent);
       }
 
-      llvm::AllocaInst* define_variable(std::string const & type, std::string const & name)
+      llvm::Value* define_variable(std::string const & type, std::string const & name)
       {
-         llvm::AllocaInst * res = builder_.CreateAlloca(lookup_type(type), 0, name.c_str());
-         symbols_[name] = res;
-         return res;
+         llvm::Value * res = builder_.CreateAlloca(lookup_type(type), 0, name.c_str());
+         return put_variable(name, res);
+      }
+
+      llvm::Value* put_variable(std::string const & name, llvm::Value* val)
+      {
+         symbols_[name] = val;
+         return val;
+      }
+
+      llvm::Type* assure_struct_by_ref(llvm::Type* tp)
+      {
+         if(tp->isStructTy())
+            return tp->getPointerTo();
+         return tp;
       }
 
       llvm::Function* visit(const ast::function_def_t * node)
@@ -314,7 +326,7 @@ namespace
 
          std::vector<llvm::Type*> arg_types(args->children.size());
          for(size_t i = 0; i < args->children.size(); ++i)
-            arg_types[i] = lookup_type(to<ast::nt_variable_def>(args->children[i])->type());
+            arg_types[i] = assure_struct_by_ref(lookup_type(to<ast::nt_variable_def>(args->children[i])->type()));
          llvm::FunctionType * ftype = llvm::FunctionType::get(lookup_type(node->type()), arg_types, false);
 
          llvm::Function *foo = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, node->name(), &module_);
@@ -339,17 +351,34 @@ namespace
             size_t i = 0;
             for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
             {
-               llvm::AllocaInst * a = define_variable(
-                  to<ast::nt_variable_def>(args->children[i])->type(),
-                  to<ast::nt_variable_def>(args->children[i])->name()
-               );
-               builder_.CreateStore(ait, a);
+               if(!arg_types[i]->isPointerTy())
+               {
+                  llvm::Value* a = define_variable(
+                     to<ast::nt_variable_def>(args->children[i])->type(),
+                     to<ast::nt_variable_def>(args->children[i])->name()
+                  );
+                  builder_.CreateStore(ait, a);
+               }
+               else
+                  put_variable(to<ast::nt_variable_def>(args->children[i])->name(), ait);
             }
          }
 
          visit(body, true);
          //         llvm::verifyFunction(*foo);
          return foo;
+      }
+
+      llvm::Value* argument(ast::base_t::ptr_t const & node, type_t exp_type, const ast::variable_t * enode = nullptr)
+      {
+         if(node->node_type() == ast::nt_variable)
+         {
+            const ast::variable_t * vnode = to<ast::nt_variable>(node);
+            llvm::Value* v = lookup_variable(vnode, enode);
+            if(v->getType()->getPointerElementType()->isStructTy())
+               return v;
+         }
+         return cast(visit_expression(node), exp_type, builder_);
       }
 
       llvm::Value* visit(const ast::function_call_t * node)
@@ -382,17 +411,17 @@ namespace
          size_t skew = 0;
          if(class_method)
          {
-            vargs[0] = visit(name_node, lowest);
+            vargs[0] = argument(node->name(), t_void, lowest);
             skew = 1;
          }
          for(size_t i = 0; i < args->children.size(); ++i)
-            vargs[i + skew] = cast(visit_expression(args->children[i]), to_type(foo->getFunctionType()->getParamType(i+skew)), builder_);
+            vargs[i + skew] = argument(args->children[i], to_type(foo->getFunctionType()->getParamType(i+skew)));
          return builder_.CreateCall(foo, vargs, "foocall");
       }
 
-      llvm::AllocaInst* visit(const ast::variable_def_t * node)
+      llvm::Value* visit(const ast::variable_def_t * node)
       {
-         llvm::AllocaInst * a = define_variable(node->type(), node->name());
+         llvm::Value * a = define_variable(node->type(), node->name());
          if(!node->children.empty())
             builder_.CreateStore(visit_expression(node->children[0]), a);
          return a;
@@ -509,7 +538,7 @@ namespace
       }
       void not_appliable(ast::binop_t::bo_t op, type_t t1, type_t t2) const
       {
-         error("operator is not appliable for this argument types");
+         error("operator is not appliable for this argument types[`" + type2str(t1) + "`, `" + type2str(t2) + "`]");
       }
       void unexpected_node(ast::base_t::ptr_t const & n) const
       {
