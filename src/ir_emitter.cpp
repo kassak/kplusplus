@@ -25,17 +25,39 @@ namespace
    struct ast_visitor_t
    {
       typedef
-         std::unordered_map<std::string, llvm::Value*>
+         std::vector<std::pair<size_t, llvm::Value*>>
+         scoped_variables_t;
+      typedef
+         std::unordered_map<std::string, scoped_variables_t>
          symbols_map_t;
       typedef
          std::unordered_map<std::string, named_struct_t>
          structs_map_t;
+
+      struct scope_guard_t
+      {
+         scope_guard_t(scope_guard_t const &) = delete;
+         scope_guard_t& operator=(scope_guard_t const &) = delete;
+
+         scope_guard_t(ast_visitor_t * av)
+            : av_(av)
+         {
+            av_->change_scope(true);
+         }
+         ~scope_guard_t()
+         {
+            av_->change_scope(false);
+         }
+      private:
+         ast_visitor_t * av_;
+      };
 
       ast_visitor_t(ast::base_t::ptr_t const & tree)
          : root_(tree)
          , module_("kassak's c++ compiler'", llvm::getGlobalContext())
          , builder_(llvm::getGlobalContext())
          , current_function_(nullptr)
+         , scope_num_(0)
       {
       }
 
@@ -283,9 +305,9 @@ namespace
          if(!parent)
          {
             symbols_map_t::const_iterator it = symbols_.find(begin->name());
-            if(it == symbols_.end())
+            if(it == symbols_.end() || it->second.empty())
                error("undefined variable `" + begin->name() + "`");
-            parent = it->second;
+            parent = it->second.back().second;
          }
          else
          {
@@ -308,7 +330,10 @@ namespace
 
       llvm::Value* put_variable(std::string const & name, llvm::Value* val)
       {
-         symbols_[name] = val;
+         scoped_variables_t & sv = symbols_[name];
+         if(!sv.empty() && sv.back().first == scope_num_)
+            error("redefinition of `" + name + "` in same scope");
+         sv.push_back(std::make_pair(scope_num_, val));
          return val;
       }
 
@@ -416,14 +441,14 @@ namespace
          }
          for(size_t i = 0; i < args->children.size(); ++i)
             vargs[i + skew] = argument(args->children[i], to_type(foo->getFunctionType()->getParamType(i+skew)));
-         return builder_.CreateCall(foo, vargs, "foocall");
+         return builder_.CreateCall(foo, vargs, foo->getReturnType()->isVoidTy() ? "" : "foocall");
       }
 
       llvm::Value* visit(const ast::variable_def_t * node)
       {
          llvm::Value * a = define_variable(node->type(), node->name());
          if(!node->children.empty())
-            builder_.CreateStore(visit_expression(node->children[0]), a);
+            builder_.CreateStore(cast(visit_expression(node->children[0]), to_type(a->getType()->getPointerElementType()), builder_), a);
          return a;
       }
 
@@ -436,6 +461,8 @@ namespace
 
       llvm::Value* visit(const ast::stmt_sequence_t * node, bool foo_body = false)
       {
+         scope_guard_t _(this);
+
          llvm::Value* res = nullptr;
          for(size_t i = 0; i < node->children.size(); ++i)
          {
@@ -549,6 +576,22 @@ namespace
       {
          os << module_;
       }
+
+      void change_scope(bool inc)
+      {
+         if(inc)
+         {
+            ++scope_num_;
+            return;
+         }
+         --scope_num_;
+         for(symbols_map_t::value_type & vars : symbols_)
+            vars.second.erase(std::remove_if(vars.second.begin(), vars.second.end(),
+               [scope_num_](scoped_variables_t::value_type const & v)
+               {
+                  return v.first > scope_num_;
+               }), vars.second.end());
+      }
    private:
       ast::base_t::ptr_t root_;
       llvm::Module module_;
@@ -556,6 +599,7 @@ namespace
       symbols_map_t symbols_;
       llvm::Function * current_function_;
       structs_map_t structs_;
+      size_t scope_num_;
       //      llvm::ValueSymbolTable symbols_;
    };
 }
