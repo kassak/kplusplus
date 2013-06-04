@@ -126,8 +126,7 @@ namespace
          case ast::binop_t::bo_assign:
             if(node->children[0]->node_type() != ast::nt_variable)
                error("lvalue expected");
-            return assign(to<ast::nt_variable>(node->children[0]), tv2);
-            //return builder_.CreateStore(tv2, lookup_variable(to<ast::nt_variable>(node->children[0])->name()));
+            return builder_.CreateStore(tv2, lookup_variable(to<ast::nt_variable>(node->children[0]), NULL));
             //         case '<':
             //            L = Builder.CreateFCmpULT(L, R, "cmptmp");
             // Convert bool 0/1 to double 0.0 or 1.0
@@ -258,38 +257,10 @@ namespace
          return it2 - strt.field_names.begin();
       }
 
-      llvm::Value* assign(const ast::variable_t * node, llvm::Value* val)
-      {
-         if(node->children.empty())
-            return builder_.CreateStore(val, lookup_variable(node->name()));
-         llvm::AllocaInst* v = lookup_variable(node->name());
-         //    llvm::Value* v = builder_.CreateLoad(lookup_variable(node->name()), "var");
-         type_t tp = to_type(v->getType()->getPointerElementType());
-         if(tp != t_struct)
-            error("should be struct `" + node->name() + "`");
-         const ast::variable_t * fld = to<ast::nt_variable>(node->children[0]);
-         //         if(fld->children.size())
-         //            error("struct required");
-         size_t idx = field_idx(lookup_struct(v->getType()->getPointerElementType()->getStructName()), fld->name());
-         //         return builder_.CreateInsertValue(v, val, idx, "fld");
-         llvm::Value* fldv = builder_.CreateStructGEP(v, idx);
-         return builder_.CreateStore(val, fldv);
-      }
-
       llvm::Value* visit(const ast::variable_t * node, const ast::variable_t * node_end = nullptr)
       {
-         llvm::AllocaInst* a = lookup_variable(node->name());
-         if(node->children.empty() || node->children[0].get() == node_end)
-            return builder_.CreateLoad(a, "var");
-         type_t tp = to_type(a->getType()->getPointerElementType());
-         if(tp != t_struct)
-            error("should be struct `" + node->name() + "`");
-         const ast::variable_t * fld = to<ast::nt_variable>(node->children[0]);
-         //         if(fld->children.size())
-         //            error("struct required");
-         size_t idx = field_idx(lookup_struct(a->getType()->getPointerElementType()->getStructName()), fld->name());
-         llvm::Value* fldv = builder_.CreateStructGEP(a, idx);
-         return builder_.CreateLoad(fldv, "var");
+         llvm::Value* a = lookup_variable(node, node_end);
+         return builder_.CreateLoad(a, "var");
       }
 
       llvm::Type* lookup_type(std::string const & name) const
@@ -307,13 +278,26 @@ namespace
          return nullptr;
       }
 
-      llvm::AllocaInst* lookup_variable(std::string const & name) const
+      llvm::Value* lookup_variable(const ast::variable_t * begin, const ast::variable_t * end, llvm::Value* parent = nullptr)
       {
-         symbols_map_t::const_iterator it = symbols_.find(name);
-         if(it == symbols_.end())
-            error("undefined variable `" + name + "`");
-         return it->second;
-         //return it->second;
+         if(!parent)
+         {
+            symbols_map_t::const_iterator it = symbols_.find(begin->name());
+            if(it == symbols_.end())
+               error("undefined variable `" + begin->name() + "`");
+            parent = it->second;
+         }
+         else
+         {
+            type_t tp = to_type(parent->getType()->getPointerElementType());
+            if(tp != t_struct)
+               error("should be struct `" + begin->name() + "`");
+            size_t idx = field_idx(lookup_struct(parent->getType()->getPointerElementType()->getStructName()), begin->name());
+            parent = builder_.CreateStructGEP(parent, idx);
+         }
+         if(begin->children.empty() || begin->children[0].get() == end)
+            return parent;
+         return lookup_variable(to<ast::nt_variable>(begin->children[0]), end, parent);
       }
 
       llvm::AllocaInst* define_variable(std::string const & type, std::string const & name)
