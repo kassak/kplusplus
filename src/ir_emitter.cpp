@@ -356,41 +356,49 @@ namespace
 
          llvm::Function *foo = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, node->name(), &module_);
          if(foo->getName() != node->name())
-            error("redefinition of " + node->name());
-
-         llvm::BasicBlock * b = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", foo);
          {
-            size_t i = 0;
-            for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
-            {
-               ait->setName(to<ast::nt_variable_def>(args->children[i])->name());
-            }
+            foo->eraseFromParent();
+            foo = module_.getFunction(node->name());
+            if(foo->getFunctionType() != ftype || (body && !foo->empty()))
+               error("redefinition of " + node->name());
          }
 
-         current_function_ = foo;
-         scope_exit([&current_function_](){current_function_ = nullptr;});
-
-         builder_.SetInsertPoint(b);
-
+         if(body)
          {
-            size_t i = 0;
-            for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
+            llvm::BasicBlock * b = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry", foo);
             {
-               if(!arg_types[i]->isPointerTy())
+               size_t i = 0;
+               for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
                {
-                  llvm::Value* a = define_variable(
-                     to<ast::nt_variable_def>(args->children[i])->type(),
-                     to<ast::nt_variable_def>(args->children[i])->name()
-                  );
-                  builder_.CreateStore(ait, a);
+                  ait->setName(to<ast::nt_variable_def>(args->children[i])->name());
                }
-               else
-                  put_variable(to<ast::nt_variable_def>(args->children[i])->name(), ait);
             }
-         }
 
-         visit(body, true);
+            current_function_ = foo;
+            scope_exit([&current_function_](){current_function_ = nullptr;});
+
+            builder_.SetInsertPoint(b);
+
+            {
+               size_t i = 0;
+               for (llvm::Function::arg_iterator ait = foo->arg_begin(); i != arg_types.size(); ++ait, ++i)
+               {
+                  if(!arg_types[i]->isPointerTy())
+                  {
+                     llvm::Value* a = define_variable(
+                        to<ast::nt_variable_def>(args->children[i])->type(),
+                        to<ast::nt_variable_def>(args->children[i])->name()
+                     );
+                     builder_.CreateStore(ait, a);
+                  }
+                  else
+                     put_variable(to<ast::nt_variable_def>(args->children[i])->name(), ait);
+               }
+            }
+
+            visit(body, true);
          //         llvm::verifyFunction(*foo);
+         }
          return foo;
       }
 
@@ -549,6 +557,8 @@ namespace
       static const typename ast::ast_node_type_f<N>::type *
       to(ast::base_t::ptr_t const & n)
       {
+         if(!n)
+            return nullptr;
          return ast::ast_cast<N>(n.get());
       }
 
@@ -556,6 +566,8 @@ namespace
       static const typename ast::ast_node_type_f<N>::type *
       to(const ast::base_t * n)
       {
+         if(!n)
+            return nullptr;
          return ast::ast_cast<N>(n);
       }
 

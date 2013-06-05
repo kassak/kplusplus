@@ -518,7 +518,14 @@ namespace ast
          base_t::ptr_t foo = std::make_shared<function_def_t>(type, name);
          lex.next();
          foo->children.push_back(parse<argument_definition_list_>(lex));
-         foo->children.push_back(parse<statements_block_>(lex));
+         if(lex.token() == TOK_BLOCK_OPEN)
+            foo->children.push_back(parse<statements_block_>(lex));
+         else
+         {
+            check_expected<function_definition_>(lex, TOK_SEMICOLON);
+            lex.next();
+            foo->children.push_back(nullptr);
+         }
          return foo;
       }
 
