@@ -149,7 +149,31 @@ namespace
             if(node->children[0]->node_type() != ast::nt_variable)
                error("lvalue expected");
             return builder_.CreateStore(tv2, lookup_variable(to<ast::nt_variable>(node->children[0]), NULL));
-            //         case '<':
+         case ast::binop_t::bo_lt:
+            if(max_tp == t_int)
+               return to_int32(builder_.CreateICmpSLT(tv1, tv1, "lttmp"), builder_);
+            else
+               return to_int32(builder_.CreateFCmpULT(tv1, tv2, "lttmp"), builder_);
+         case ast::binop_t::bo_le:
+            if(max_tp == t_int)
+               return to_int32(builder_.CreateICmpSLE(tv1, tv1, "letmp"), builder_);
+            else
+               return to_int32(builder_.CreateFCmpULE(tv1, tv2, "letmp"), builder_);
+         case ast::binop_t::bo_gt:
+            if(max_tp == t_int)
+               return to_int32(builder_.CreateICmpSGT(tv1, tv1, "gttmp"), builder_);
+            else
+               return to_int32(builder_.CreateFCmpUGT(tv1, tv2, "gttmp"), builder_);
+         case ast::binop_t::bo_ge:
+            if(max_tp == t_int)
+               return to_int32(builder_.CreateICmpSGE(tv1, tv1, "getmp"), builder_);
+            else
+               return to_int32(builder_.CreateFCmpUGE(tv1, tv2, "getmp"), builder_);
+         case ast::binop_t::bo_eq:
+            if(max_tp == t_int)
+               return to_int32(builder_.CreateICmpEQ(tv1, tv1, "eqtmp"), builder_);
+            else
+               return to_int32(builder_.CreateFCmpUEQ(tv1, tv2, "eqtmp"), builder_);
             //            L = Builder.CreateFCmpULT(L, R, "cmptmp");
             // Convert bool 0/1 to double 0.0 or 1.0
             //            return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()),

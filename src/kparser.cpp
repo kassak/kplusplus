@@ -437,10 +437,13 @@ namespace ast
             }
          case TOK_FLOAT:
          case TOK_INT:
+         case TOK_MINUS:
+         case TOK_BRACE_OPEN:
             {
                stmt = parse<expression_>(lex);
                check_expected<statement_>(lex, TOK_SEMICOLON);
                lex.next(); //consume ;
+               break;
             }
          case TOK_WHILE: // while
             {

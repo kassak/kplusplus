@@ -119,4 +119,9 @@ namespace ir
       }
       return nullptr;
    }
+
+   llvm::Value* to_int32(llvm::Value* val, llvm::IRBuilder<> & builder)
+   {
+      return builder.CreateIntCast(val, llvm::Type::getInt32Ty(llvm::getGlobalContext()), true, "boolint");
+   }
 }
