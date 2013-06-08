@@ -139,6 +139,8 @@ namespace ast
                   return binop_t::bo_ge;
                case TOK_EQ:
                   return binop_t::bo_eq;
+               case TOK_NEQ:
+                  return binop_t::bo_neq;
                case TOK_LT:
                   return binop_t::bo_lt;
                case TOK_GT:
@@ -155,6 +157,7 @@ namespace ast
                case binop_t::bo_assign:
                   return -1;
                case binop_t::bo_eq:
+               case binop_t::bo_neq:
                   return 2;
                case binop_t::bo_le:
                case binop_t::bo_ge:
@@ -189,7 +192,7 @@ namespace ast
          std::vector<binop_t::bo_t> bops;
          atoms.push_back(parse<expression_atom_>(lex));
          static const first_t ops = {TOK_ASSIGNMENT, TOK_PLUS, TOK_MINUS,
-                                     TOK_MULT, TOK_DIVIDE, TOK_LE, TOK_GE, TOK_EQ, TOK_LT, TOK_GT};
+                                     TOK_MULT, TOK_DIVIDE, TOK_LE, TOK_GE, TOK_EQ, TOK_NEQ, TOK_LT, TOK_GT};
          while(ops.count(lex.token()))
          {
             binop_t::bo_t op = h::from_token(lex.token());

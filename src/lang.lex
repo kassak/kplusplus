@@ -97,6 +97,10 @@ ws [ \t\r\n]
     return TOK_EQ;
 }
 
+"!=" {
+    return TOK_NEQ;
+}
+
 "<" {
     return TOK_LT;
 }

@@ -289,7 +289,7 @@ namespace ast
    {
       enum bo_t
       {
-         bo_assign, bo_plus, bo_minus, bo_mult, bo_div, bo_eq, bo_le, bo_ge, bo_lt, bo_gt
+         bo_assign, bo_plus, bo_minus, bo_mult, bo_div, bo_eq, bo_neq, bo_le, bo_ge, bo_lt, bo_gt
       };
 
       binop_t(bo_t type)
@@ -322,6 +322,8 @@ namespace ast
             return ">";
          case bo_eq:
             return "==";
+         case bo_neq:
+            return "!=";
          case bo_le:
             return "<=";
          case bo_ge:

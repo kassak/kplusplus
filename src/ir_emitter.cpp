@@ -174,6 +174,11 @@ namespace
                return to_int32(builder_.CreateICmpEQ(tv1, tv1, "eqtmp"), builder_);
             else
                return to_int32(builder_.CreateFCmpUEQ(tv1, tv2, "eqtmp"), builder_);
+         case ast::binop_t::bo_neq:
+            if(max_tp == t_int)
+               return to_int32(builder_.CreateICmpNE(tv1, tv1, "neqtmp"), builder_);
+            else
+               return to_int32(builder_.CreateFCmpUNE(tv1, tv2, "neqtmp"), builder_);
             //            L = Builder.CreateFCmpULT(L, R, "cmptmp");
             // Convert bool 0/1 to double 0.0 or 1.0
             //            return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()),
