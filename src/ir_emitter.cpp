@@ -324,7 +324,8 @@ namespace
 
       llvm::Value* define_variable(std::string const & type, std::string const & name)
       {
-         llvm::Value * res = builder_.CreateAlloca(lookup_type(type), 0, name.c_str());
+         llvm::Value * res;
+         res = builder_.CreateAlloca(lookup_type(type), 0, name.c_str());
          return put_variable(name, res);
       }
 
@@ -454,6 +455,15 @@ namespace
 
       llvm::Value* visit(const ast::variable_def_t * node)
       {
+         if(!current_function_)
+         {
+            llvm::Type * tp = lookup_type(node->type());
+            if(!node->children.empty())
+               error("global variable initializers are unsupported");
+            llvm::Value * res = new llvm::GlobalVariable(module_, tp, false, llvm::GlobalValue::PrivateLinkage, llvm::UndefValue::get(tp), node->name().c_str());
+            put_variable(node->name(), res);
+            return res;
+         }
          llvm::Value * a = define_variable(node->type(), node->name());
          if(!node->children.empty())
             builder_.CreateStore(cast(visit_expression(node->children[0]), to_type(a->getType()->getPointerElementType()), builder_), a);
